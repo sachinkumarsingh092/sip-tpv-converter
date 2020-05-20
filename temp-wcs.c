@@ -1,5 +1,3 @@
-#include <config.h>
-
 #include <time.h>
 #include <errno.h>
 #include <error.h>
@@ -8,6 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+
+#include <wcslib/dis.h>
+#include <wcslib/lin.h>
+#include <wcslib/wcslib.h>
 
 #include <gsl/gsl_linalg.h>
 
@@ -21,6 +23,9 @@
 
 
 
+
+/***********************************/
+
 #define GAL_WCS_MAX_PVSIZE    40
 #define GAL_WCS_MAX_POLYORDER 8
 
@@ -33,6 +38,25 @@
    ({ __typeof__ (a) _a = (a);  \
        __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
+
+
+
+
+enum distortion_type {
+  DIS_TPV = 1,
+  DIS_SIP = 2,
+  DIS_DSS = 3,
+  DIS_WAT = 4,
+  DIS_TPD = 5
+};
+
+
+/***********************************/
+
+
+
+
+
 
 
 /* add filename etc. parameters later.*/
@@ -375,19 +399,41 @@ gal_wcs_add_sipkeywords(double tpvu[8][8], double tpvv[8][8])
 }
 
 
+
+
+
+
+// int
+// gal_wcs_distortion_read(struct wcsprm *wcs, double *distortion)
+// {
+// }
+
+
+
+
+
+
 int main(){
-    // struct wcsprm *wcs;
-    // int a;
-    double cd[2][2]={0};
+    struct wcsprm *wcs;
+    int a;
+    // double cd[2][2]={0};
     // double tpvx[8][8]={0};
     // double tpvy[8][8]={0};
-    double tpvu[8][8]={0};
-    double tpvv[8][8]={0};
+    // double tpvu[8][8]={0};
+    // double tpvv[8][8]={0};
+    // struct disprm *dis=NULL;
     // double pv1[GAL_WCS_MAX_PVSIZE] = {0};
     // double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-    // wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &a);  
-    // gal_wcs_get_params(wcs, cd, pv1, pv2);
-    // gal_wcs_compute_tpv(pv1, pv2, tpvx, tpvy);
-    gal_wcs_real_tpveq(cd, tpvu, tpvv);
+    wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &a);
 
+    struct disprm *dispre=NULL;
+    dispre = malloc(sizeof(struct disprm));
+    struct linprm lin;
+    dispre->flag = -1;
+    dispre=wcs->lin.dispre;
+    lin=wcs->lin;
+    lindist(1, &lin, dispre, -1);
+    
+    printf("%d\n", lin.dispre->naxis);
+  return 0;
 }
