@@ -9,6 +9,7 @@
 
 #include <wcslib/dis.h>
 #include <wcslib/lin.h>
+#include <wcslib/wcs.h>
 #include <wcslib/wcslib.h>
 
 #include <gsl/gsl_linalg.h>
@@ -403,37 +404,77 @@ gal_wcs_add_sipkeywords(double tpvu[8][8], double tpvv[8][8])
 
 
 
-// int
-// gal_wcs_distortion_read(struct wcsprm *wcs, double *distortion)
-// {
-// }
-
-
 
 
 
 
 int main(){
-    struct wcsprm *wcs;
-    int a;
-    // double cd[2][2]={0};
-    // double tpvx[8][8]={0};
-    // double tpvy[8][8]={0};
-    // double tpvu[8][8]={0};
-    // double tpvv[8][8]={0};
-    // struct disprm *dis=NULL;
-    // double pv1[GAL_WCS_MAX_PVSIZE] = {0};
-    // double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-    wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &a);
+    char *wcsstr;
+    char *program_string;
+    gal_data_t *out=NULL;
+    struct linprm *lin=NULL;
+    struct wcsprm *wcs=NULL;
+    struct disprm *disseq=NULL;
+    gal_fits_list_key_t *headers;
+    char *outfile="test-tpd.fits";
+    int nwcs, nkeyrec, dstatus, wstatus;
 
-    struct disprm *dispre=NULL;
-    dispre = malloc(sizeof(struct disprm));
-    struct linprm lin;
-    dispre->flag = -1;
-    dispre=wcs->lin.dispre;
-    lin=wcs->lin;
-    lindist(1, &lin, dispre, -1);
-    
-    printf("%d\n", lin.dispre->naxis);
+    /* Temporary defined variables. Ignored while testing.
+    double cd[2][2]={0};
+    double tpvx[8][8]={0};
+    double tpvy[8][8]={0};
+    double tpvu[8][8]={0};
+    double tpvv[8][8]={0};
+    struct disprm *dis=NULL;
+    double pv1[GAL_WCS_MAX_PVSIZE] = {0};
+    double pv2[GAL_WCS_MAX_PVSIZE] = {0};
+    */
+
+    /* Read wcs from fits file. */
+    wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &nwcs);
+
+    /* For a check of lin params:
+    lin=&wcs->lin;
+    linprt(lin);
+    */
+
+    /* Set the dispram. */
+    disseq=&wcs->lin.disseq;
+
+    /*To check the disprams
+    disprt(wcs->lin.disseq);
+    */
+
+    /* Do the converstion to TPD params. */
+    dstatus=dishdo(wcs->lin.disseq);
+
+    /* For a check:
+    printf("%f\n", disseq->dp[3].value.f);
+    printf("%f\n", wcs->lin.disseq->dp[6].value.f);
+    */
+   
+    printf("disseq status = %d\n", dstatus);
+
+    /* Write the wcs headers. */
+    wstatus=wcshdo(WCSHDO_safe, wcs, &nkeyrec, &wcsstr);
+
+    printf("wstatus status = %d\n", wstatus);
+
+    /* To check the final wcsparams to be written in headers
+    printf("%s\n", wcsstr);
+    wcsprt(wcs);
+    */
+
+    /* Write the modified header into the fits file. Currently showing 
+       errors while memory allocation in wcshdo. */
+    out->wcs=wcs;
+    out->nwcs=nwcs;
+    /* Tried bith of them. Same segmentation fault. */
+
+    // gal_fits_img_write(out, outfile, &headers, &program_string);
+    gal_fits_img_write(out, outfile, NULL, NULL);
+
+
+    gal_data_free(out);
   return 0;
 }
