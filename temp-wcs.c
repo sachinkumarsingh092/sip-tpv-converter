@@ -417,6 +417,8 @@ int main(){
     struct disprm *disseq=NULL;
     gal_fits_list_key_t *headers;
     char *outfile="test-tpd.fits";
+    char *infile="test-pv.fits", *inhdu="1";
+
     int nwcs, nkeyrec, dstatus, wstatus;
 
     /* Temporary defined variables. Ignored while testing.
@@ -432,6 +434,7 @@ int main(){
 
     /* Read wcs from fits file. */
     wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &nwcs);
+    // out=malloc(sizeof *out);
 
     /* For a check of lin params:
     lin=&wcs->lin;
@@ -452,7 +455,7 @@ int main(){
     printf("%f\n", disseq->dp[3].value.f);
     printf("%f\n", wcs->lin.disseq->dp[6].value.f);
     */
-   
+
     printf("disseq status = %d\n", dstatus);
 
     /* Write the wcs headers. */
@@ -461,19 +464,18 @@ int main(){
     printf("wstatus status = %d\n", wstatus);
 
     /* To check the final wcsparams to be written in headers
-    printf("%s\n", wcsstr);
+    printf("%f\n", wcs->pv[0].value);
     wcsprt(wcs);
     */
 
-    /* Write the modified header into the fits file. Currently showing 
-       errors while memory allocation in wcshdo. */
+   /* Read the data of the input file. */
+    out=gal_fits_img_read(infile, inhdu, -1, 1);
+
+    /* Write the modified header into the fits file.  */
     out->wcs=wcs;
     out->nwcs=nwcs;
-    /* Tried bith of them. Same segmentation fault. */
 
-    // gal_fits_img_write(out, outfile, &headers, &program_string);
-    gal_fits_img_write(out, outfile, NULL, NULL);
-
+    gal_fits_img_write(out,  outfile, NULL, NULL);
 
     gal_data_free(out);
   return 0;
