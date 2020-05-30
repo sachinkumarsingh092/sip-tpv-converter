@@ -28,7 +28,7 @@
 /***********************************/
 
 #define GAL_WCS_MAX_PVSIZE    40
-#define GAL_WCS_MAX_POLYORDER 8
+#define GAL_WCS_MAX_POLYORDER  8
 
 #define max(a,b)                \
    ({ __typeof__ (a) _a = (a);  \
@@ -40,16 +40,6 @@
        __typeof__ (b) _b = (b); \
      _a < _b ? _a : _b; })
 
-
-
-
-enum distortion_type {
-  DIS_TPV = 1,
-  DIS_SIP = 2,
-  DIS_DSS = 3,
-  DIS_WAT = 4,
-  DIS_TPD = 5
-};
 
 
 /***********************************/
@@ -65,7 +55,7 @@ static void
 gal_wcs_get_params(struct wcsprm *wcs, double cd[2][2], \
                    double *pv1, double *pv2)
 {
-  size_t i,j,k,index=0;
+  size_t i, j,k,index=0;
   size_t pv_m=0;
   // double cd[2][2]={0};
   // double pv1[GAL_WCS_MAX_PVSIZE] = {0};
@@ -89,7 +79,7 @@ gal_wcs_get_params(struct wcsprm *wcs, double cd[2][2], \
         */
       }
 
-  for(j=0; j<GAL_WCS_MAX_PVSIZE; j++)
+  for(j=0; j < wcs->npvmax; j++)
   {
     if(wcs->pv[j].i == 1)
       {
@@ -137,16 +127,6 @@ gal_wcs_get_params(struct wcsprm *wcs, double cd[2][2], \
 
 }
 
-
-
-
-
-
-static void
-gal_wcs_uv_sipeq(struct wcsprm *wcs)
-{
-  /*TODO*/
-}
 
 
 
@@ -220,8 +200,8 @@ gal_wcs_compute_tpv(double *pv1, double *pv2, \
   /* fromed by x <-> y conversion of above matrix*/
   /***** tpvy matrix ******/
   /* Order 2 terms.*/
-  tpvy[0][1] = pv2[1];
   tpvy[0][0] = pv2[0];
+  tpvy[0][1] = pv2[1];
   tpvy[1][0] = pv2[2];
   tpvy[0][2] = pv2[4];
   tpvy[1][1] = pv2[5];
@@ -284,19 +264,21 @@ gal_wcs_compute_tpv(double *pv1, double *pv2, \
 
 
 static void
-gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8])
+gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8],
+                   char *infile, char *inhdu)
 {
-  /* tpvu and tpvv are u-v distortion coefficientsin TPV convention. */
+  /* tpvu and tpvv are u-v distortion equations in TPV convention. */
   int a;
   size_t i,j;
   double determinant=0;
   struct wcsprm *wcs=NULL;
   double cd_inv[2][2]={0};
-  double tpv1[8][8]={0}, tpv2[8][8]={0};
   double pv1[GAL_WCS_MAX_PVSIZE] = {0};
   double pv2[GAL_WCS_MAX_PVSIZE] = {0};
+  double tpv1[8][8]={0}, tpv2[8][8]={0};
 
-  wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &a); 
+
+  wcs=gal_wcs_read(infile, inhdu, 0, 0, &a); 
 
   gal_wcs_get_params(wcs, cd, pv1, pv2);
 
@@ -310,36 +292,41 @@ gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8])
       where |A| is the determinant of the matrix which is calculated by:
                           |A| = a*d-b*c.
     */
+
+
   determinant = cd[0][0]*cd[1][1] - cd[0][1]*cd[1][0];
-  /* For a check:
-  printf("%.10lf\t%.10lf\t%.10lf\t%.10lf\n", cd[0][0], cd[0][1], \
-                                             cd[1][0], cd[1][1]);
-  printf("%.10lf\n", determinant);
-  */
 
   /* Inverse matrix */
-  cd_inv[0][0]=cd[1][1]/determinant;    /* a */
-  cd_inv[0][1]=-1*cd[0][1]/determinant; /* b */
-  cd_inv[1][0]=-1*cd[1][0]/determinant; /* c */
-  cd_inv[1][1]=cd[0][0]/determinant;    /* d */
+  cd_inv[0][0]=cd[1][1]/determinant;      /* a */
+  cd_inv[0][1]=(-1*cd[0][1])/determinant; /* b */
+  cd_inv[1][0]=(-1*cd[1][0])/determinant; /* c */
+  cd_inv[1][1]=cd[0][0]/determinant;      /* d */
+
+  /*For a check.
+  printf("%.10lf\t%.10lf\t%.10lf\t%.10lf\n", cd_inv[0][0], cd_inv[0][1], \
+                                             cd_inv[1][0], cd_inv[1][1]);
+  printf("%.10lf\n", determinant);
+  */
 
   /* For matrix tpvv and tpvu, we have to use the following 
      matrix equation:
 
                   |tpvu| = cd_inv*|tpv1|
                   |tpvv|          |tpv2|
+    though intermidate polynomial equations have to be calculated prior
+    to multiplycation with cd_inv.
       */
 
-  for(i=0; i<8; i++){
+  for(i=0; i<8; i++)
     for(j=0; j<8; j++){
       tpvu[i][j]=cd_inv[0][0]*tpv1[i][j]+cd_inv[0][1]*tpv2[i][j];
       tpvv[i][j]=cd_inv[1][0]*tpv1[i][j]+cd_inv[1][1]*tpv2[i][j];
 
       /*For a check:
+      printf("%.10f %.10f\n", tpv1[i][j], tpv2[i][j]);
       printf("%.10lf, %.10lf\n", tpvu[i][j], tpvv[i][j]);
       */
     }
-  }
 
 }
 
@@ -364,7 +351,7 @@ gal_wcs_calcsip(size_t axis, size_t m, size_t n, \
         sip_coeff = sip_coeff - 1.0;
   else if( (axis == 2) && (m == 0) && (n == 1) )
         sip_coeff = sip_coeff - 1.0;
-    
+
   return sip_coeff;
 
 }
@@ -372,31 +359,11 @@ gal_wcs_calcsip(size_t axis, size_t m, size_t n, \
 
 
 
-void
-gal_wcs_add_sipkeywords(double tpvu[8][8], double tpvv[8][8])
-{
-  size_t i,j;
-  double val=0;
-  size_t a_order=0, b_order=0;
 
-  for(i=0; i<8; i++)
-    for(j=0; j<8; j++)
-      {
-        /*For axis = 1*/
-        val=gal_wcs_calcsip(1, i, j, tpvu, tpvv);
-        if(val != 0)
-          {
-            a_order=max(a_order, max(i,j));
-          }
-        
-        /*For axis = 2*/
-        val=gal_wcs_calcsip(2, i, j, tpvu, tpvv);
-        if(val != 0)
-          {
-            b_order=max(b_order, max(i,j));
-          }
-      }
 
+char *
+gal_wcs_add_revkeywords(){
+  /*TODO*/
 }
 
 
@@ -405,23 +372,253 @@ gal_wcs_add_sipkeywords(double tpvu[8][8], double tpvv[8][8])
 
 
 
+char *  
+gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8], 
+                        char *infile, char *inhdu, int add_reverse)
+{
+  double val=0;
+  double cd[2][2] = {0};
+  size_t a_order=0, b_order=0;
+  size_t m, n, num=0, numkey=50;
+  char *fullheader, fmt[50], sipkey[8];
+  
+
+  /* The format for each card. */
+  sprintf(fmt, "%%-8s= %%20.12E%%50s");
+
+  gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  
+  /* Allcate memory for cards. */
+  fullheader = malloc(numkey*80);
+
+
+  for(m=0; m<8; m++)
+    for(n=0; n<8; n++)
+      {
+        /*For axis = 1*/
+        val=gal_wcs_calcsip(1, m, n, tpvu, tpvv);
+        if(val != 0)
+          {
+            /* Make keywords */
+            sprintf(sipkey, "A_%ld_%ld", m, n);
+            sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
+            a_order=max(a_order, max(m,n));
+          }
+        
+        /*For axis = 2*/
+        val=gal_wcs_calcsip(2, m, n, tpvu, tpvv);
+        if(val != 0)
+          {
+            /* Make keywords */
+            sprintf(sipkey, "B_%ld_%ld", m, n);
+            sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
+            b_order=max(b_order, max(m,n));
+          }
+        
+      }
+  
+  /* Add other necessary cards. */
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20d%50s", "WCSAXES", wcs->naxis, "");
+
+  /* Include a loop for each axes. */
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.8lf%50s", "CRPIX1", wcs->crpix[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.8lf%50s", "CRPIX2", wcs->crpix[1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC1_1", wcs->pc[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC1_2", wcs->pc[1], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC2_1", wcs->pc[2], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC2_2", wcs->pc[3], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "CDELT1", wcs->cdelt[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "CDELT2", wcs->cdelt[1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CUNIT1", wcs->cunit[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CUNIT2", wcs->cunit[1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE1", "'RA---TAN-SIP'");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE2", "'DEC--TAN-SIP'");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD1_1", wcs->cd[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD1_2", wcs->cd[1], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD2_1", wcs->cd[2], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD2_2", wcs->cd[3], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", "CRVAL1", wcs->crval[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", "CRVAL2", wcs->crval[1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LONPOLE", wcs->lonpole, "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LATPOLE", wcs->latpole, "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFI", wcs->mjdref[0], "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFF", wcs->mjdref[1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "RADESYS", wcs->radesys, "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "EQUINOX", wcs->equinox, "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "A_ORDER", a_order, "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "B_ORDER", b_order, "");
+
+
+  if( add_reverse )
+    gal_wcs_add_revkeywords();
+
+
+  /*For a check.
+  printf("%s\n", fullheader);
+  */
+
+  return fullheader;
+
+}
+
+
+
+
+
+struct wcsprm *
+gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
+{
+  int ctrl     = 0;          /* Don't report why a keyword wasn't used. */
+  int nreject  = 0;          /* Number of keywords rejected for syntax. */
+  size_t i, fulllen;
+  int nwcs, sumcheck;
+  int nkeys=0, status=0;
+  int relax    = WCSHDR_all; /* Macro: use all informal WCS extensions. */
+  struct wcsprm *outwcs=NULL;
+  double tpvu[8][8] ={0}, tpvv[8][8]={0};
+  
+  char *fullheader=gal_wcs_add_sipkeywords(inwcs, tpvu, tpvv, infile, inhdu, 0);
+
+  printf("%s\n", fullheader);
+  /* WCSlib function to parse the FITS headers. */
+  status=wcspih(fullheader, nkeys, relax, ctrl, &nreject, &nwcs, &outwcs);
+  if( outwcs == NULL )
+  {
+    
+    fprintf(stderr, "\n##################\n"
+            "WCSLIB Warning: wcspih ERROR %d: %s.\n"
+            "##################\n",
+            status, wcs_errmsg[status]);
+    outwcs=NULL; nwcs=0;
+    // exit(0);
+  }
+  
+  printf("nreject=%d\n", nreject);
+  /* Set the internal structure: */
+  if(outwcs)
+    {
+      /* It may happen that the WCS-related keyword values are stored as
+         strings (they have single-quotes around them). In this case,
+         WCSLIB will read the CRPIX and CRVAL values as zero. When this
+         happens do a small check and abort, while informing the user about
+         the problem. */
+      sumcheck=0;
+      for(i=0;i<outwcs->naxis;++i)
+        {sumcheck += (outwcs->crval[i]==0.0f) + (outwcs->crpix[i]==0.0f);}
+      if(sumcheck==outwcs->naxis*2)
+        {
+          /* We only care about the first set of characters in each
+             80-character row, so we don't need to parse the last few
+             characters anyway. */
+          fulllen=strlen(fullheader)-12;
+          for(i=0;i<fulllen;++i)
+            if( strncmp(fullheader+i, "CRVAL1  = '", 11) == 0 )
+              fprintf(stderr, "WARNING: WCS Keyword values are not "
+                      "numbers.\n\n"
+                      "WARNING: The values to the WCS-related keywords are "
+                      "enclosed in single-quotes. In the FITS standard "
+                      "this is how string values are stored, therefore "
+                      "WCSLIB is unable to read them AND WILL PUT ZERO IN "
+                      "THEIR PLACE (creating a wrong WCS in the output). "
+                      "Please update the respective keywords of the input "
+                      "to be numbers (see next line).\n\n"
+                      "WARNING: You can do this with Gnuastro's `astfits' "
+                      "program and the `--update' option. The minimal WCS "
+                      "keywords that need a numerical value are: `CRVAL1', "
+                      "`CRVAL2', `CRPIX1', `CRPIX2', `EQUINOX' and "
+                      "`CD%%_%%' (or `PC%%_%%', where the %% are integers), "
+                      "please see the FITS standard, and inspect your FITS "
+                      "file to identify the full set of keywords that you "
+                      "need correct (for example PV%%_%% keywords).\n\n");
+        }
+
+      /* CTYPE is a mandatory WCS keyword, so if it hasn't been given (its
+         '\0'), then the headers didn't have a WCS structure. However,
+         WCSLIB still fills in the basic information (for example the
+         dimensionality of the dataset). */
+      if(outwcs->ctype[0][0]=='\0')
+        {
+          wcsfree(outwcs);
+          outwcs=NULL;
+          nwcs=0;
+        }
+      else
+        {
+          /* For a check.
+          printf("flag: %d\n", outwcs->flag);
+          printf("naxis: %d\n", outwcs->naxis);
+          printf("crpix: %f, %f\n", outwcs->crpix[0], outwcs->crpix[1]);
+          printf("pc: %f, %f, %f, %f\n", outwcs->pc[0], outwcs->pc[1], outwcs->pc[2],
+                 outwcs->pc[3]);
+          printf("cdelt: %f, %f\n", outwcs->cdelt[0], outwcs->cdelt[1]);
+          printf("crval: %f, %f\n", outwcs->crval[0], outwcs->crval[1]);
+          printf("cunit: %s, %s\n", outwcs->cunit[0], outwcs->cunit[1]);
+          printf("ctype: %s, %s\n", outwcs->ctype[0], outwcs->ctype[1]);
+          printf("lonpole: %f\n", outwcs->lonpole);
+          printf("latpole: %f\n", outwcs->latpole);
+          */
+
+          /* Set the WCS structure. */
+          status=wcsset(outwcs);
+          if(status)
+            {
+              fprintf(stderr, "\n##################\n"
+                      "WCSLIB Warning: wcsset ERROR %d: %s.\n"
+                      "##################\n",
+                      status, wcs_errmsg[status]);
+              wcsfree(outwcs);
+              outwcs=NULL;
+              nwcs=0;
+            }
+          else
+            /* A correctly useful WCS is present. When no PC matrix
+               elements were present in the header, the default PC matrix
+               (a unity matrix) is used. In this case WCSLIB doesn't set
+               `altlin' (and gives it a value of 0). In Gnuastro, later on,
+               we might need to know the type of the matrix used, so in
+               such a case, we will set `altlin' to 1. */
+            if(outwcs->altlin==0) outwcs->altlin=1;
+        }
+    }
+
+  /* Clean up and return. */
+  status=0;
+  if (fits_free_memory(fullheader, &status) )
+    gal_fits_io_error(status, "problem in freeing the memory used to "
+                      "keep all the headers");
+  return outwcs;
+
+}
+
+
 
 
 
 int main(){
     char *wcsstr;
-    char *program_string;
     gal_data_t *out=NULL;
     struct linprm *lin=NULL;
     struct wcsprm *wcs=NULL;
-    struct disprm *disseq=NULL;
+    struct wcsprm *outwcs=NULL;
+    struct disprm *disseq=NULL, *tdisp=NULL;
     gal_fits_list_key_t *headers;
     char *outfile="test-tpd.fits";
     char *infile="test-pv.fits", *inhdu="1";
 
     int nwcs, nkeyrec, dstatus, wstatus;
 
-    /* Temporary defined variables. Ignored while testing.
+    // /* Temporary defined variables. Ignored while testing.
     double cd[2][2]={0};
     double tpvx[8][8]={0};
     double tpvy[8][8]={0};
@@ -430,53 +627,75 @@ int main(){
     struct disprm *dis=NULL;
     double pv1[GAL_WCS_MAX_PVSIZE] = {0};
     double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-    */
+    // */
 
-    /* Read wcs from fits file. */
-    wcs=gal_wcs_read("test-pv.fits", "1", 0, 0, &nwcs);
-    // out=malloc(sizeof *out);
+  //   /* Read wcs from fits file. */
+  wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
 
-    /* For a check of lin params:
-    lin=&wcs->lin;
-    linprt(lin);
-    */
+  //   /* For a check of lin params:
+  //   lin=&wcs->lin;
+  //   linprt(lin);
+  //   */
 
-    /* Set the dispram. */
-    disseq=&wcs->lin.disseq;
+  // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
-    /*To check the disprams
-    disprt(wcs->lin.disseq);
-    */
+  wcsprt(wcs);
+  outwcs=gal_wcs_tpv2sip(wcs, infile, inhdu);
+  // printf("%s\n", outwcs->ctype[0]);
 
-    /* Do the converstion to TPD params. */
-    dstatus=dishdo(wcs->lin.disseq);
+  //   /* Set the dispram. */
+  //   disseq=wcs->lin.disseq;
 
-    /* For a check:
-    printf("%f\n", disseq->dp[3].value.f);
-    printf("%f\n", wcs->lin.disseq->dp[6].value.f);
-    */
+  //   // disseq->dtype="SIP";
+  //   // disseq->ndp=27;
+  //   // disseq->ndpmax=27;
+  //   // disseq->ndis=3;
+  //   // disndp(27);
+  //   // dpfill(disseq->dp, "DP1", "SIP.FWD.1_1", 1, 1, 0, 0.987);
+  //   // *(wcs->ctype)[0]="RA---TAN-SIP";
+  //   // *(wcs->ctype)[1]="DEC--TAN-SIP";
+  //   // disset(disseq);
 
-    printf("disseq status = %d\n", dstatus);
 
-    /* Write the wcs headers. */
-    wstatus=wcshdo(WCSHDO_safe, wcs, &nkeyrec, &wcsstr);
 
-    printf("wstatus status = %d\n", wstatus);
+  //   /*To check the disprams
+  //   */
+  //   // disprt(wcs->lin.disseq);
 
-    /* To check the final wcsparams to be written in headers
-    printf("%f\n", wcs->pv[0].value);
-    wcsprt(wcs);
-    */
+  //   /* Do the converstion to TPD params. */
+  //   // dstatus=dishdo(wcs->lin.disseq);
 
-   /* Read the data of the input file. */
-    out=gal_fits_img_read(infile, inhdu, -1, 1);
 
-    /* Write the modified header into the fits file.  */
-    out->wcs=wcs;
-    out->nwcs=nwcs;
+  //   /* For a check:
+  //   printf("%f\n", disseq->dp[3].value.f);
+  //   printf("%f\n", wcs->lin.disseq->dp[6].value.f);
+  //   */
 
-    gal_fits_img_write(out,  outfile, NULL, NULL);
+  //   printf("disseq status = %d\n", dstatus);
 
-    gal_data_free(out);
+  //   /* Write the wcs headers. */
+  //   wstatus=wcshdo(WCSHDO_all, wcs, &nkeyrec, &wcsstr);
+
+  //   printf("wstatus status = %d\n", wstatus);
+
+  //   /* To check the final wcsparams to be written in headers
+  //   printf("%f\n", wcs->pv[0].value);
+  //   */
+  //   wcsprt(wcs);
+
+  //  /* Read the data of the input file. */
+  //   out=gal_fits_img_read(infile, inhdu, -1, 1);
+
+  //   /* Write the modified header into the fits file.  */
+  //   out->wcs=wcs;
+  //   out->nwcs=nwcs;
+
+  //   // printf("%f\n", wcs->lin.disseq->dp[4].value.f);
+  //   // gal_fits_img_write(out,  outfile, NULL, NULL);
+
+  //   gal_data_free(out);
+
+  
   return 0;
 }
