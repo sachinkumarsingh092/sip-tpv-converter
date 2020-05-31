@@ -374,22 +374,75 @@ gal_wcs_add_revkeywords(){
 
 char *  
 gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8], 
-                        char *infile, char *inhdu, int add_reverse)
+                        char *infile, char *inhdu, int add_reverse, int *nkeys)
 {
   double val=0;
+  uint8_t i, j, k=0;
   double cd[2][2] = {0};
+  int size = wcs->naxis;
   size_t a_order=0, b_order=0;
-  size_t m, n, num=0, numkey=50;
-  char *fullheader, fmt[50], sipkey[8];
+  size_t m, n, num=0, numkey=100;
+  char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10];
   
+  *nkeys = 0;
 
   /* The format for each card. */
   sprintf(fmt, "%%-8s= %%20.12E%%50s");
 
   gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
   
+  
   /* Allcate memory for cards. */
   fullheader = malloc(numkey*80);
+
+  /* Add other necessary cards. */
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20d%50s", "WCSAXES", wcs->naxis, "");
+  
+
+  /* Include a loop for each axes. */
+  for(i=1; i<=size; i++)
+    {
+      sprintf(keyaxis, "CRPIX%d", i);
+      sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.8lf%50s", keyaxis, wcs->crpix[i-1], "");
+    }
+
+  for(i=1; i<=size; i++)
+    for(j=1; j<=size; j++)
+      {
+        sprintf(pcaxis, "PC%d_%d", i, j);
+        sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", pcaxis, wcs->pc[k++], "");
+      }
+
+  for(i=1; i<=size; i++)
+    { 
+      sprintf(keyaxis, "CDELT%d", i);
+      sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", keyaxis, wcs->cdelt[i-1], "");
+    }
+
+  for(i=1; i<=size; i++)
+    { 
+      sprintf(keyaxis, "CUNIT%d", i);
+      sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", keyaxis, wcs->cunit[i-1]);
+    }
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE1", "'RA---TAN-SIP'");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE2", "'DEC--TAN-SIP'");
+
+  for(i=1; i<=size; i++)
+    { 
+      sprintf(keyaxis, "CRVAL%d", i);
+      sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", keyaxis, wcs->crval[i-1], "");
+    }
+  
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LONPOLE", wcs->lonpole, "");
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LATPOLE", wcs->latpole, "");
+  
+  for(i=1; i<=size; i++)
+    sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFI", wcs->mjdref[i-1], "");
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "RADESYS", wcs->radesys);
+
+  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "EQUINOX", wcs->equinox, "");
 
 
   for(m=0; m<8; m++)
@@ -417,52 +470,15 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
         
       }
   
-  /* Add other necessary cards. */
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20d%50s", "WCSAXES", wcs->naxis, "");
-
-  /* Include a loop for each axes. */
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.8lf%50s", "CRPIX1", wcs->crpix[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.8lf%50s", "CRPIX2", wcs->crpix[1], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC1_1", wcs->pc[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC1_2", wcs->pc[1], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC2_1", wcs->pc[2], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "PC2_2", wcs->pc[3], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "CDELT1", wcs->cdelt[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "CDELT2", wcs->cdelt[1], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CUNIT1", wcs->cunit[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CUNIT2", wcs->cunit[1], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE1", "'RA---TAN-SIP'");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE2", "'DEC--TAN-SIP'");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD1_1", wcs->cd[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD1_2", wcs->cd[1], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD2_1", wcs->cd[2], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17E%50s", "CD2_2", wcs->cd[3], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", "CRVAL1", wcs->crval[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", "CRVAL2", wcs->crval[1], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LONPOLE", wcs->lonpole, "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LATPOLE", wcs->latpole, "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFI", wcs->mjdref[0], "");
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFF", wcs->mjdref[1], "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "RADESYS", wcs->radesys, "");
-
-  sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "EQUINOX", wcs->equinox, "");
-
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "A_ORDER", a_order, "");
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "B_ORDER", b_order, "");
 
-
+  
   if( add_reverse )
     gal_wcs_add_revkeywords();
 
+
+  *nkeys = num;
 
   /*For a check.
   printf("%s\n", fullheader);
@@ -488,7 +504,8 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
   struct wcsprm *outwcs=NULL;
   double tpvu[8][8] ={0}, tpvv[8][8]={0};
   
-  char *fullheader=gal_wcs_add_sipkeywords(inwcs, tpvu, tpvv, infile, inhdu, 0);
+  char *fullheader=gal_wcs_add_sipkeywords(inwcs, tpvu, tpvv, infile, inhdu, 0, &nkeys);
+
 
   printf("%s\n", fullheader);
   /* WCSlib function to parse the FITS headers. */
@@ -501,10 +518,8 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
             "##################\n",
             status, wcs_errmsg[status]);
     outwcs=NULL; nwcs=0;
-    // exit(0);
   }
-  
-  printf("nreject=%d\n", nreject);
+
   /* Set the internal structure: */
   if(outwcs)
     {
@@ -592,6 +607,10 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
         }
     }
 
+  /*For a check.
+    wcsprt(outwcs);
+  */
+
   /* Clean up and return. */
   status=0;
   if (fits_free_memory(fullheader, &status) )
@@ -605,20 +624,21 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
 
 
 
+
 int main(){
     char *wcsstr;
     gal_data_t *out=NULL;
-    struct linprm *lin=NULL;
+    // struct linprm *lin=NULL;
     struct wcsprm *wcs=NULL;
     struct wcsprm *outwcs=NULL;
-    struct disprm *disseq=NULL, *tdisp=NULL;
-    gal_fits_list_key_t *headers;
-    char *outfile="test-tpd.fits";
+    // struct disprm *disseq=NULL, *tdisp=NULL;
+    // gal_fits_list_key_t *headers;
+    char *outfile="test-sip.fits";
     char *infile="test-pv.fits", *inhdu="1";
 
     int nwcs, nkeyrec, dstatus, wstatus;
 
-    // /* Temporary defined variables. Ignored while testing.
+    /* Temporary defined variables. Ignored while testing.
     double cd[2][2]={0};
     double tpvx[8][8]={0};
     double tpvy[8][8]={0};
@@ -627,74 +647,28 @@ int main(){
     struct disprm *dis=NULL;
     double pv1[GAL_WCS_MAX_PVSIZE] = {0};
     double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-    // */
+    */
 
-  //   /* Read wcs from fits file. */
+  /* Read wcs from fits file. */
   wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
+  gal_wcs_decompose_pc_cdelt(wcs);
 
-  //   /* For a check of lin params:
-  //   lin=&wcs->lin;
-  //   linprt(lin);
-  //   */
 
   // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
   // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
-  wcsprt(wcs);
   outwcs=gal_wcs_tpv2sip(wcs, infile, inhdu);
-  // printf("%s\n", outwcs->ctype[0]);
+  wcsprt(outwcs);
 
-  //   /* Set the dispram. */
-  //   disseq=wcs->lin.disseq;
+  /* Read the data of the input file. */
+  out=gal_fits_img_read(infile, inhdu, -1, 1);
 
-  //   // disseq->dtype="SIP";
-  //   // disseq->ndp=27;
-  //   // disseq->ndpmax=27;
-  //   // disseq->ndis=3;
-  //   // disndp(27);
-  //   // dpfill(disseq->dp, "DP1", "SIP.FWD.1_1", 1, 1, 0, 0.987);
-  //   // *(wcs->ctype)[0]="RA---TAN-SIP";
-  //   // *(wcs->ctype)[1]="DEC--TAN-SIP";
-  //   // disset(disseq);
+  /* Write the modified header into the fits file.  */
+  out->wcs=outwcs;
+  out->nwcs=1;
 
-
-
-  //   /*To check the disprams
-  //   */
-  //   // disprt(wcs->lin.disseq);
-
-  //   /* Do the converstion to TPD params. */
-  //   // dstatus=dishdo(wcs->lin.disseq);
-
-
-  //   /* For a check:
-  //   printf("%f\n", disseq->dp[3].value.f);
-  //   printf("%f\n", wcs->lin.disseq->dp[6].value.f);
-  //   */
-
-  //   printf("disseq status = %d\n", dstatus);
-
-  //   /* Write the wcs headers. */
-  //   wstatus=wcshdo(WCSHDO_all, wcs, &nkeyrec, &wcsstr);
-
-  //   printf("wstatus status = %d\n", wstatus);
-
-  //   /* To check the final wcsparams to be written in headers
-  //   printf("%f\n", wcs->pv[0].value);
-  //   */
-  //   wcsprt(wcs);
-
-  //  /* Read the data of the input file. */
-  //   out=gal_fits_img_read(infile, inhdu, -1, 1);
-
-  //   /* Write the modified header into the fits file.  */
-  //   out->wcs=wcs;
-  //   out->nwcs=nwcs;
-
-  //   // printf("%f\n", wcs->lin.disseq->dp[4].value.f);
-  //   // gal_fits_img_write(out,  outfile, NULL, NULL);
-
-  //   gal_data_free(out);
+  gal_fits_img_write(out, outfile, NULL, NULL);
+  // gal_data_free(out);
 
   
   return 0;
