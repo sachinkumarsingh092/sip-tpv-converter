@@ -138,16 +138,11 @@ static void
 gal_wcs_compute_tpv(double cd[2][2], double *pv1, double *pv2, \
                     double k[5][5], double l[5][5])
 {
-  // double tpvx[8][8]={0};
-  // double tpvy[8][8]={0};
   size_t i, j;
-
 
   /* The indexes of the tpv* matrices are the exponents of x and y in 
      a TPV distortion equation leaving out radial terms 
      PV[1,3], PV[1,11], PV[1,23], PV[1,39] */
-  // printf("%10E %10E %10E %10E \n", cd[0][0], cd[0][1], \
-                                   cd[1][0], cd[1][1]);
 
   /* Intermidate polynomials, k[i][j] and l[i][j].  */
 
@@ -179,7 +174,7 @@ gal_wcs_compute_tpv(double cd[2][2], double *pv1, double *pv2, \
   k[2][0]=cd[0][0]*cd[0][0]*pv1[4]+ \
           cd[0][0]*cd[1][0]*pv1[5]+ \
           cd[1][0]*cd[1][0]*pv1[6];
-  l[2][0]=cd[1][1]*cd[1][1]*pv2[6]+ \
+  l[2][0]=cd[0][0]*cd[0][0]*pv2[6]+ \
           cd[0][0]*cd[1][0]*pv2[5]+ \
           cd[1][0]*cd[1][0]*pv2[4];
 
@@ -388,9 +383,8 @@ gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8],
       tpvu[i][j]=cd_inv[0][0]*k[i][j]+cd_inv[0][1]*l[i][j];
       tpvv[i][j]=cd_inv[1][0]*k[i][j]+cd_inv[1][1]*l[i][j];
 
-      printf("%.10E, %.10E\n", tpvu[i][j], tpvv[i][j]);
       /*For a check:
-      printf("%.10f %.10f\n", tpv1[i][j], tpv2[i][j]);
+      printf("%.10E, %.10E\n", tpvu[i][j], tpvv[i][j]);
       */
     }
 
@@ -533,7 +527,6 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
           }
         
       }
-  printf("%ld %ld\n", a_order, b_order);
   
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "A_ORDER", a_order, "");
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "B_ORDER", b_order, "");
@@ -545,9 +538,9 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
 
   *nkeys = num;
 
-  /*For a check.
+  // /*For a check.
   printf("%s\n", fullheader);
-  */
+  // */
 
   return fullheader;
 
@@ -672,9 +665,9 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
         }
     }
 
-  // /*For a check.
+  /*For a check.
     wcsprt(outwcs);
-  // */
+  */
 
   /* Clean up and return. */
   status=0;
@@ -691,7 +684,6 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
 
 
 int main(){
-    char *wcsstr;
     gal_data_t *out=NULL;
     // struct linprm *lin=NULL;
     struct wcsprm *wcs=NULL;
@@ -701,7 +693,7 @@ int main(){
     char *outfile="test-sip.fits";
     char *infile="test-pv.fits", *inhdu="1";
 
-    int nwcs, nkeyrec, dstatus, wstatus;
+    int nwcs;
 
     /* Temporary defined variables. Ignored while testing.
     double cd[2][2]={0};
