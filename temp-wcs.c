@@ -132,10 +132,11 @@ gal_wcs_get_params(struct wcsprm *wcs, double cd[2][2], \
 
 
 
-
+/* Maybe tpv* matrix maybe not needed for this task.
+   Remove it if redundant. */
 static void
-gal_wcs_compute_tpv(double *pv1, double *pv2, \
-                    double tpvx[8][8], double tpvy[8][8])
+gal_wcs_compute_tpv(double cd[2][2], double *pv1, double *pv2, \
+                    double k[5][5], double l[5][5])
 {
   // double tpvx[8][8]={0};
   // double tpvy[8][8]={0};
@@ -145,114 +146,177 @@ gal_wcs_compute_tpv(double *pv1, double *pv2, \
   /* The indexes of the tpv* matrices are the exponents of x and y in 
      a TPV distortion equation leaving out radial terms 
      PV[1,3], PV[1,11], PV[1,23], PV[1,39] */
+  // printf("%10E %10E %10E %10E \n", cd[0][0], cd[0][1], \
+                                   cd[1][0], cd[1][1]);
 
-  /****** tpvx matrix *****/
-  /* Order 2 terms.*/
-  tpvx[0][0] = pv1[0];
-  tpvx[1][0] = pv1[1];
-  tpvx[0][1] = pv1[2];
-  tpvx[2][0] = pv1[4];
-  tpvx[1][1] = pv1[5];
-  tpvx[0][2] = pv1[6];
+  /* Intermidate polynomials, k[i][j] and l[i][j].  */
 
-  /*Order 3 terms.*/
-  tpvx[3][0] = pv1[7];
-  tpvx[2][1] = pv1[8];
-  tpvx[1][2] = pv1[9];
-  tpvx[0][3] = pv1[10];
+  k[0][0]=pv1[0];
+  l[0][0]=pv2[0];
 
-  /*Order 4 terms.*/
-  tpvx[4][0] = pv1[12];
-  tpvx[3][1] = pv1[13];
-  tpvx[2][2] = pv1[14];
-  tpvx[1][3] = pv1[15];
-  tpvx[0][4] = pv1[16];
+  k[0][1]=cd[0][1]*pv1[1]+cd[1][1]*pv1[2];
+  l[0][1]=cd[0][1]*pv2[2]+cd[1][1]*pv2[1];
 
-  /*Order 5 terms.*/
-  tpvx[5][0] = pv1[17];
-  tpvx[4][1] = pv1[18];
-  tpvx[3][2] = pv1[19];
-  tpvx[2][3] = pv1[20];
-  tpvx[1][4] = pv1[21];
-  tpvx[0][5] = pv1[22];
+  k[1][0]=cd[0][0]*pv1[1]+cd[1][0]*pv1[2];
+  l[1][0]=cd[0][0]*pv2[2]+cd[1][0]*pv2[1];
 
-  /*Order 6 terms.*/
-  tpvx[6][0] = pv1[24];
-  tpvx[5][1] = pv1[25];
-  tpvx[4][2] = pv1[26];
-  tpvx[3][3] = pv1[27];
-  tpvx[2][4] = pv1[28];
-  tpvx[1][5] = pv1[29];
-  tpvx[0][6] = pv1[30];
+  k[0][2]=cd[0][1]*cd[0][1]*pv1[4]+ \
+          cd[0][1]*cd[1][1]*pv1[5]+ \
+          cd[1][1]*cd[1][1]*pv1[6];
+  l[0][2]=cd[0][1]*cd[0][1]*pv2[6]+ \
+          cd[0][1]*cd[1][1]*pv2[5]+ \
+          cd[1][1]*cd[1][1]*pv2[4];
 
-  /*Order 7 terms.*/
-  tpvx[7][0] = pv1[31];
-  tpvx[6][1] = pv1[32];
-  tpvx[5][2] = pv1[33];
-  tpvx[4][3] = pv1[34];
-  tpvx[3][4] = pv1[35];
-  tpvx[2][5] = pv1[36];
-  tpvx[1][6] = pv1[37];
-  tpvx[0][7] = pv1[38];
+  k[1][1]=2*cd[0][0]*cd[0][1]*pv1[4]+ \
+            cd[0][0]*cd[1][1]*pv1[5]+ \
+            cd[0][1]*cd[1][0]*pv1[5]+ \
+          2*cd[1][0]*cd[1][1]*pv1[6];
+  l[1][1]=2*cd[0][0]*cd[0][1]*pv2[6]+ \
+            cd[0][0]*cd[1][1]*pv2[5]+ \
+            cd[0][1]*cd[1][0]*pv2[5]+ \
+          2*cd[1][0]*cd[1][1]*pv2[4];
+  
+  k[2][0]=cd[0][0]*cd[0][0]*pv1[4]+ \
+          cd[0][0]*cd[1][0]*pv1[5]+ \
+          cd[1][0]*cd[1][0]*pv1[6];
+  l[2][0]=cd[1][1]*cd[1][1]*pv2[6]+ \
+          cd[0][0]*cd[1][0]*pv2[5]+ \
+          cd[1][0]*cd[1][0]*pv2[4];
+
+  k[0][3]=cd[0][1]*cd[0][1]*cd[0][1]*pv1[7]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*pv1[8]+ \
+          cd[0][1]*cd[1][1]*cd[1][1]*pv1[9]+ \
+          cd[1][1]*cd[1][1]*cd[1][1]*pv1[10];
+  l[0][3]=cd[0][1]*cd[0][1]*cd[0][1]*pv2[10]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*pv2[9]+ \
+          cd[0][1]*cd[1][1]*cd[1][1]*pv2[8]+ \
+          cd[1][1]*cd[1][1]*cd[1][1]*pv2[7];
 
 
+  k[1][2]=3*cd[0][0]*cd[0][1]*cd[0][1]*pv1[7]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][1]*pv1[8]+ \
+            cd[0][0]*cd[1][1]*cd[1][1]*pv1[9]+ \
+            cd[0][1]*cd[0][1]*cd[1][0]*pv1[8]+ \
+          2*cd[0][1]*cd[1][0]*cd[1][1]*pv1[9]+ \
+          3*cd[1][0]*cd[1][1]*cd[1][1]*pv1[10];
+  l[1][2]=3*cd[0][0]*cd[0][1]*cd[0][1]*pv2[10]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][1]*pv2[9]+ \
+            cd[0][0]*cd[1][1]*cd[1][1]*pv2[8]+ \
+            cd[0][1]*cd[0][1]*cd[1][0]*pv2[9]+ \
+          2*cd[0][1]*cd[1][0]*cd[1][1]*pv2[8]+ \
+          3*cd[1][0]*cd[1][1]*cd[1][1]*pv2[7];
 
-  /* fromed by x <-> y conversion of above matrix*/
-  /***** tpvy matrix ******/
-  /* Order 2 terms.*/
-  tpvy[0][0] = pv2[0];
-  tpvy[0][1] = pv2[1];
-  tpvy[1][0] = pv2[2];
-  tpvy[0][2] = pv2[4];
-  tpvy[1][1] = pv2[5];
-  tpvy[2][0] = pv2[6];
 
-  /*Order 3 terms.*/
-  tpvy[0][3] = pv2[7];
-  tpvy[1][2] = pv2[8];
-  tpvy[2][1] = pv2[9];
-  tpvy[3][0] = pv2[10];
+  k[2][1]=3*cd[0][0]*cd[0][0]*cd[0][1]*pv1[7]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][0]*pv1[8]+ \
+            cd[0][0]*cd[0][0]*cd[1][1]*pv1[8]+ \
+            cd[0][1]*cd[1][0]*cd[1][0]*pv1[9]+ \
+          2*cd[0][0]*cd[1][0]*cd[1][1]*pv1[9]+ \
+          3*cd[1][0]*cd[1][0]*cd[1][1]*pv1[10];
+  l[2][1]=3*cd[0][0]*cd[0][0]*cd[0][1]*pv2[10]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][0]*pv2[9]+ \
+            cd[0][0]*cd[0][0]*cd[1][1]*pv2[9]+ \
+            cd[0][1]*cd[1][0]*cd[1][0]*pv2[8]+ \
+          2*cd[0][0]*cd[1][0]*cd[1][1]*pv2[8]+ \
+          3*cd[1][0]*cd[1][0]*cd[1][1]*pv2[7];
 
-  /*Order 4 terms.*/
-  tpvy[0][4] = pv2[12];
-  tpvy[1][3] = pv2[13];
-  tpvy[2][2] = pv2[14];
-  tpvy[3][1] = pv2[15];
-  tpvy[4][0] = pv2[16];
 
-  /*Order 5 terms.*/
-  tpvy[0][5] = pv2[17];
-  tpvy[1][4] = pv2[18];
-  tpvy[2][3] = pv2[19];
-  tpvy[3][2] = pv2[20];
-  tpvy[4][1] = pv2[21];
-  tpvy[5][0] = pv2[22];
+  k[3][0]=cd[0][0]*cd[0][0]*cd[0][0]*pv1[7]+ \
+          cd[0][0]*cd[0][0]*cd[1][0]*pv1[8]+ \
+          cd[0][0]*cd[1][0]*cd[1][0]*pv1[9]+ \
+          cd[1][0]*cd[1][0]*cd[1][0]*pv1[10];
+  l[3][0]=cd[0][0]*cd[0][0]*cd[0][0]*pv2[10]+ \
+          cd[0][0]*cd[0][0]*cd[1][0]*pv2[9]+ \
+          cd[0][0]*cd[1][0]*cd[1][0]*pv2[8]+ \
+          cd[1][0]*cd[1][0]*cd[1][0]*pv2[7];
 
-  /*Order 6 terms.*/
-  tpvy[0][6] = pv2[24];
-  tpvy[1][5] = pv2[25];
-  tpvy[2][4] = pv2[26];
-  tpvy[3][3] = pv2[27];
-  tpvy[4][2] = pv2[28];
-  tpvy[5][1] = pv2[29];
-  tpvy[6][0] = pv2[30];
 
-  /*Order 7 terms.*/
-  tpvy[0][7] = pv2[31];
-  tpvy[1][6] = pv2[32];
-  tpvy[2][5] = pv2[33];
-  tpvy[3][4] = pv2[34];
-  tpvy[4][3] = pv2[35];
-  tpvy[5][2] = pv2[36];
-  tpvy[6][1] = pv2[37];
-  tpvy[7][0] = pv2[38];
+  k[0][4]=cd[0][1]*cd[0][1]*cd[0][1]*cd[0][1]*pv1[12]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*cd[1][1]*pv1[13]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*cd[1][1]*pv1[14]+ \
+          cd[0][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv1[15]+ \
+          cd[1][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv1[16];
+  l[0][4]=cd[0][1]*cd[0][1]*cd[0][1]*cd[0][1]*pv2[16]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*cd[1][1]*pv2[15]+ \
+          cd[0][1]*cd[0][1]*cd[1][1]*cd[1][1]*pv2[14]+ \
+          cd[0][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[13]+ \
+          cd[1][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[12];
+ 
+  
+  k[1][3]=4*cd[0][0]*cd[0][1]*cd[0][1]*cd[0][1]*pv1[12]+ \
+          3*cd[0][0]*cd[0][1]*cd[0][1]*cd[1][1]*pv1[13]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][1]*cd[1][1]*pv1[14]+ \
+            cd[0][0]*cd[1][1]*cd[1][1]*cd[1][1]*pv1[15]+ \
+            cd[0][1]*cd[0][1]*cd[0][1]*cd[1][0]*pv1[13]+ \
+          2*cd[0][1]*cd[0][1]*cd[1][0]*cd[1][1]*pv1[14]+ \
+          3*cd[0][1]*cd[1][0]*cd[1][1]*cd[1][1]*pv1[15]+ \
+          4*cd[1][0]*cd[1][1]*cd[1][1]*cd[1][1]*pv1[16];
+  l[1][3]=4*cd[0][0]*cd[0][1]*cd[0][1]*cd[0][1]*pv2[16]+ \
+          3*cd[0][0]*cd[0][1]*cd[0][1]*cd[1][1]*pv2[15]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][1]*cd[1][1]*pv2[14]+ \
+            cd[0][0]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[13]+ \
+            cd[0][1]*cd[0][1]*cd[0][1]*cd[1][0]*pv2[15]+ \
+          2*cd[0][1]*cd[0][1]*cd[1][0]*cd[1][1]*pv2[14]+ \
+          3*cd[0][1]*cd[1][0]*cd[1][1]*cd[1][1]*pv2[13]+ \
+          4*cd[1][0]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[12];
+
+
+  k[2][2]=6*cd[0][0]*cd[0][0]*cd[0][1]*cd[0][1]*pv1[12]+ \
+          3*cd[0][0]*cd[0][0]*cd[0][1]*cd[1][1]*pv1[13]+ \
+            cd[0][0]*cd[0][0]*cd[1][1]*cd[1][1]*pv1[14]+ \
+          3*cd[0][0]*cd[0][1]*cd[0][1]*cd[1][0]*pv1[13]+ \
+          4*cd[0][0]*cd[0][1]*cd[1][0]*cd[1][1]*pv1[14]+ \
+          3*cd[0][0]*cd[1][0]*cd[1][1]*cd[1][1]*pv1[15]+ \
+            cd[0][1]*cd[0][1]*cd[1][0]*cd[1][0]*pv1[14]+ \
+          3*cd[0][1]*cd[1][0]*cd[1][0]*cd[1][1]*pv1[15]+ \
+          6*cd[1][0]*cd[1][0]*cd[1][1]*cd[1][1]*pv1[16];
+  l[2][2]=6*cd[0][0]*cd[0][0]*cd[0][1]*cd[0][1]*pv2[16]+ \
+          3*cd[0][0]*cd[0][0]*cd[0][1]*cd[1][1]*pv2[15]+ \
+            cd[0][0]*cd[0][0]*cd[1][1]*cd[1][1]*pv2[14]+ \
+          3*cd[0][0]*cd[0][1]*cd[0][1]*cd[1][0]*pv2[15]+ \
+          4*cd[0][0]*cd[0][1]*cd[1][0]*cd[1][1]*pv2[14]+ \
+          3*cd[0][0]*cd[1][0]*cd[1][1]*cd[1][1]*pv2[15]+ \
+            cd[0][1]*cd[0][1]*cd[1][0]*cd[1][0]*pv2[14]+ \
+          3*cd[0][1]*cd[1][0]*cd[1][0]*cd[1][1]*pv2[13]+ \
+          6*cd[1][0]*cd[1][0]*cd[1][1]*cd[1][1]*pv2[12];
+  
+  k[3][1]=4*cd[0][0]*cd[0][0]*cd[0][0]*cd[0][1]*pv1[12]+ \
+            cd[0][0]*cd[0][0]*cd[0][0]*cd[1][1]*pv1[13]+ \
+          3*cd[0][0]*cd[0][0]*cd[0][1]*cd[1][0]*pv1[13]+ \
+          2*cd[0][0]*cd[0][0]*cd[1][0]*cd[1][1]*pv1[14]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][0]*cd[1][0]*pv1[14]+ \
+          3*cd[0][0]*cd[1][0]*cd[1][0]*cd[1][1]*pv1[15]+ \
+            cd[0][1]*cd[1][0]*cd[1][0]*cd[1][0]*pv1[15]+ \
+          4*cd[1][0]*cd[1][0]*cd[1][0]*cd[1][1]*pv1[16];
+  l[3][1]=4*cd[0][0]*cd[0][0]*cd[0][0]*cd[0][1]*pv2[16]+ \
+            cd[0][0]*cd[0][0]*cd[0][0]*cd[1][1]*pv2[15]+ \
+          3*cd[0][0]*cd[0][0]*cd[0][1]*cd[1][0]*pv2[15]+ \
+          2*cd[0][0]*cd[0][0]*cd[1][0]*cd[1][1]*pv2[14]+ \
+          2*cd[0][0]*cd[0][1]*cd[1][0]*cd[1][0]*pv2[14]+ \
+          3*cd[0][0]*cd[1][0]*cd[1][0]*cd[1][1]*pv2[13]+ \
+            cd[0][1]*cd[1][0]*cd[1][0]*cd[1][0]*pv2[13]+ \
+          4*cd[1][0]*cd[1][0]*cd[1][0]*cd[1][1]*pv2[12];
+
+
+  k[4][0]=cd[0][0]*cd[0][0]*cd[0][0]*cd[0][0]*pv1[12]+ \
+          cd[0][0]*cd[0][0]*cd[0][0]*cd[1][0]*pv1[13]+ \
+          cd[0][0]*cd[0][0]*cd[1][0]*cd[1][0]*pv1[14]+ \
+          cd[0][0]*cd[1][0]*cd[1][0]*cd[1][0]*pv1[15]+ \
+          cd[1][0]*cd[1][0]*cd[1][0]*cd[1][0]*pv1[16];
+  l[4][0]=cd[0][0]*cd[0][0]*cd[0][0]*cd[0][0]*pv2[16]+ \
+          cd[0][0]*cd[0][0]*cd[0][0]*cd[1][0]*pv2[15]+ \
+          cd[0][0]*cd[0][0]*cd[1][0]*cd[1][0]*pv2[14]+ \
+          cd[0][0]*cd[1][0]*cd[1][0]*cd[1][0]*pv2[13]+ \
+          cd[1][0]*cd[1][0]*cd[1][0]*cd[1][0]*pv2[12];
+
+
 
   /* For a check:
-  for(i=0; i<8; i++)
-    for(j=0;j<8;j++)
+  for(i=0; i<=4; i++)
+    for(j=0;j<=4;j++)
       {
-        printf("tpvx%ld_%ld \t %.10f\n",   i, j, tpvx[i][j]);
-        printf("tpvy%ld_%ld \t %.10f\n\n", i, j, tpvy[i][j]);
+        printf("k%ld_%ld \t %.10E\n",   i, j, k[i][j]);
+        printf("l%ld_%ld \t %.10E\n\n", i, j, l[i][j]);
       }
   */
 
@@ -275,14 +339,16 @@ gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8],
   double cd_inv[2][2]={0};
   double pv1[GAL_WCS_MAX_PVSIZE] = {0};
   double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-  double tpv1[8][8]={0}, tpv2[8][8]={0};
+  double k[5][5]={0}, l[5][5]={0};
+  // double tpv1[8][8]={0}, tpv2[8][8]={0};
 
 
   wcs=gal_wcs_read(infile, inhdu, 0, 0, &a); 
 
   gal_wcs_get_params(wcs, cd, pv1, pv2);
 
-  gal_wcs_compute_tpv(pv1, pv2, tpv1, tpv2);
+  gal_wcs_compute_tpv(cd, pv1, pv2, k, l);
+
 
   /* We will find matrix tpvu and tpvv by finding inverse of
      CD matrix and multiplying with tpv* matrix. 
@@ -317,14 +383,14 @@ gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8],
     to multiplycation with cd_inv.
       */
 
-  for(i=0; i<8; i++)
-    for(j=0; j<8; j++){
-      tpvu[i][j]=cd_inv[0][0]*tpv1[i][j]+cd_inv[0][1]*tpv2[i][j];
-      tpvv[i][j]=cd_inv[1][0]*tpv1[i][j]+cd_inv[1][1]*tpv2[i][j];
+  for(i=0; i<=4; i++)
+    for(j=0; j<=4; j++){
+      tpvu[i][j]=cd_inv[0][0]*k[i][j]+cd_inv[0][1]*l[i][j];
+      tpvv[i][j]=cd_inv[1][0]*k[i][j]+cd_inv[1][1]*l[i][j];
 
+      printf("%.10E, %.10E\n", tpvu[i][j], tpvv[i][j]);
       /*For a check:
       printf("%.10f %.10f\n", tpv1[i][j], tpv2[i][j]);
-      printf("%.10lf, %.10lf\n", tpvu[i][j], tpvv[i][j]);
       */
     }
 
@@ -397,9 +463,7 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
 
   /* Add other necessary cards. */
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20d%50s", "WCSAXES", wcs->naxis, "");
-  
 
-  /* Include a loop for each axes. */
   for(i=1; i<=size; i++)
     {
       sprintf(keyaxis, "CRPIX%d", i);
@@ -445,8 +509,8 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "EQUINOX", wcs->equinox, "");
 
 
-  for(m=0; m<8; m++)
-    for(n=0; n<8; n++)
+  for(m=0; m<=4; m++)
+    for(n=0; n<=4; n++)
       {
         /*For axis = 1*/
         val=gal_wcs_calcsip(1, m, n, tpvu, tpvv);
@@ -469,6 +533,7 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs, double tpvu[8][8], double tpvv[8][8]
           }
         
       }
+  printf("%ld %ld\n", a_order, b_order);
   
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "A_ORDER", a_order, "");
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "B_ORDER", b_order, "");
@@ -507,7 +572,7 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
   char *fullheader=gal_wcs_add_sipkeywords(inwcs, tpvu, tpvv, infile, inhdu, 0, &nkeys);
 
 
-  printf("%s\n", fullheader);
+  // printf("%s\n", fullheader);
   /* WCSlib function to parse the FITS headers. */
   status=wcspih(fullheader, nkeys, relax, ctrl, &nreject, &nwcs, &outwcs);
   if( outwcs == NULL )
@@ -607,9 +672,9 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs, char *infile, char *inhdu)
         }
     }
 
-  /*For a check.
+  // /*For a check.
     wcsprt(outwcs);
-  */
+  // */
 
   /* Clean up and return. */
   status=0;
@@ -658,7 +723,7 @@ int main(){
   // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
   outwcs=gal_wcs_tpv2sip(wcs, infile, inhdu);
-  wcsprt(outwcs);
+  // wcsprt(outwcs);
 
   /* Read the data of the input file. */
   out=gal_fits_img_read(infile, inhdu, -1, 1);
