@@ -725,10 +725,10 @@ gal_wcs_fitreverse(double *u,
     {
       for(j=0; j<=ap_order-i; j++)
         {
-          ap_coeff[i][j]=gsl_vector_get(c_bp, p_ap);
+          ap_coeff[i][j]=gsl_vector_get(c_ap, p_ap);
 
           /*For a check.
-          printf("AP_%ld_%ld = %.8E\n", i, j, gsl_vector_get(c_ap, p_ap));
+          printf("AP_%ld_%ld = %.8E\n", i, j, ap_coeff[i][j]);
           */
 
           p_ap++;
@@ -743,7 +743,7 @@ gal_wcs_fitreverse(double *u,
           bp_coeff[i][j]=gsl_vector_get(c_bp, p_bp);
 
           /*For a check.
-          printf("BP_%ld_%ld = %.8E\n", i, j, gsl_vector_get(c_bp, p_bp));
+          printf("BP_%ld_%ld = %.8E\n", i, j, bp_coeff[i][j]);
           */
 
           p_bp++;
@@ -805,22 +805,21 @@ gal_wcs_fitreverse(double *u,
 
 /* Add wcs to read crpix and naxisn here
     instead of read_sipparams.*/
-char *
+void
 gal_wcs_add_revkeywords(struct wcsprm *wcs,
                         gal_data_t *in,
+                        double ap_coeff[5][5], 
+                        double bp_coeff[5][5],
                         char *infile, 
                         char *inhdu)
 {
   size_t tsize=0;
-  double cd[2][2]={0};
   size_t i=0, j=0, k=0;
   size_t naxis1, naxis2;
   double crpix1, crpix2;
   double *u=NULL, *v=NULL;
   size_t a_order=0, b_order=0;
-  double tpvu[8][8]={0}, tpvv[8][8]={0};
   double a_coeff[5][5]={0}, b_coeff[5][5]={0};
-  double ap_coeff[5][5]={0}, bp_coeff[5][5]={0};
 
   in=gal_fits_img_read(infile, inhdu, -1, 1);
 
@@ -852,9 +851,10 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
   */
 
   gal_wcs_get_sipparam(wcs, &a_order, &b_order, a_coeff, b_coeff, infile, inhdu);
-  // printf("ss=%ld\n", a_order);
+
   gal_wcs_fitreverse(u, v, a_order, b_order, naxis1, naxis2, 
-                     a_coeff, b_coeff, a_coeff, b_coeff);
+                     a_coeff, b_coeff, ap_coeff, bp_coeff);
+
 
   free(v);
   free(u);
@@ -882,7 +882,9 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
   uint8_t i, j, k=0;
   int size = wcs->naxis;
   size_t a_order=0, b_order=0;
+  size_t ap_order=0, bp_order=0;
   size_t m, n, num=0, numkey=100;
+  double ap_coeff[5][5]={0}, bp_coeff[5][5]={0};
   char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10];
   
   *nkeys = 0;
@@ -974,7 +976,39 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
 
   
   if( add_reverse )
-    gal_wcs_add_revkeywords(wcs, in, infile, inhdu);
+    {
+      ap_order=a_order;
+      bp_order=b_order;
+
+      gal_wcs_add_revkeywords(wcs, in, ap_coeff, bp_coeff, infile, inhdu);
+
+      for(m=0; m<=ap_order; m++)
+        for(n=0; n<=ap_order-m; n++)
+          {
+            /*For axis = 1*/
+            val=ap_coeff[m][n];
+            if(val != 0)
+              {
+                /* Make keywords */
+                sprintf(sipkey, "AP_%ld_%ld", m, n);
+                sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
+              }
+            
+            /*For axis = 2*/
+            val=bp_coeff[m][n];
+            if(val != 0)
+              {
+                /* Make keywords */
+                sprintf(sipkey, "BP_%ld_%ld", m, n);
+                sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
+              }
+          }
+
+    sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "AP_ORDER", ap_order, "");
+    sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "BP_ORDER", bp_order, "");
+
+    }
+
 
 
   *nkeys = num;
