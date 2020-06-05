@@ -4,7 +4,7 @@ from astropy.io import fits
 
 np.warnings.filterwarnings('ignore') # ignore version warnings
 
-fits_image_filename = 'test-pv.fits'
+fits_image_filename = './test-fits/test-pv.fits'
 
 hdul = fits.open(fits_image_filename)  # open a FITS file
 

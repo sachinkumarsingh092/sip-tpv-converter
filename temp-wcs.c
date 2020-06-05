@@ -143,8 +143,8 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
 
 static void
 gal_wcs_get_sipparam(struct wcsprm *wcs,
-                      size_t a_order,
-                      size_t b_order,
+                      size_t *a_order,
+                      size_t *b_order,
                       double a_coeff[5][5],
                       double b_coeff[5][5],         
                       char *infile, 
@@ -156,6 +156,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
   double cd[2][2]={0};
   double tpvu[8][8]={0}, tpvv[8][8]={0};
   
+
   gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
 
 
@@ -179,7 +180,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
         if(val != 0)
           {
             a_coeff[m][n]=val;
-            a_order=max(a_order, max(m,n));
+            *a_order=max(*a_order, max(m,n));
           }
         else
           a_coeff[m][n]=0;
@@ -189,13 +190,12 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
         if(val != 0)
           {
             b_coeff[m][n]=val;
-            b_order=max(b_order, max(m,n));
+            *b_order=max(*b_order, max(m,n));
           }
         else
           b_coeff[m][n]=0;
       }
   
-
   /*For a check.
   for(m=0;m<=4;m++)
     for(n=0;n<=4;n++)
@@ -506,15 +506,169 @@ gal_wcs_calcsip(size_t axis,
 
 
 
+/* Just combine fitreverse and evalpoly. */
+static void
+gal_wcs_fitreverse(double *u,
+                 double *v,
+                 size_t a_order,
+                 size_t b_order,
+                 size_t naxis1, 
+                 size_t naxis2,
+                 double a_coeff[5][5],
+                 double b_coeff[5][5])
+{
+  size_t i=0, j=0, k=0;
+  double *uprime=NULL, *vprime=NULL;
+  double *udiff=NULL, *vdiff=NULL;
+  size_t tsize=(naxis1/4)*(naxis2/4);
+  double **udict=NULL, **vdict=NULL;
+  double **updict=NULL, **vpdict=NULL;
+  size_t ap_order=a_order, bp_order=b_order;
 
-// static void
-// gal_wcs_evalpoly(double *u,
-//                  double *v,
-//                  double a_coeff[5][5],
-//                  double b_coeff[5][5])
-// {
 
-// }
+  /*Allocate updict and vpdict.*/
+  updict=malloc((ap_order+1)*sizeof(*updict));
+  vpdict=malloc((bp_order+1)*sizeof(*vpdict));
+
+  for(i=0; i<=max(ap_order, bp_order); i++)
+    {
+      updict[i]=malloc(tsize*sizeof(updict));
+      vpdict[i]=malloc(tsize*sizeof(vpdict));
+    }
+
+
+  /*allocating uprime and vprime.*/
+  uprime=malloc(tsize*sizeof(*uprime));
+  vprime=malloc(tsize*sizeof(*vprime));
+
+
+  /*allocating uprime and vprime.*/
+  udiff=malloc(tsize*sizeof(*udiff));
+  vdiff=malloc(tsize*sizeof(*vdiff));
+
+
+  /*allocating uprime and vprime.*/
+  udict=malloc((a_order+1)*sizeof(*udict));
+  vdict=malloc((b_order+1)*sizeof(*vdict));
+
+  for(i=0; i<=max(a_order, b_order); i++)
+    {
+      udict[i]=malloc(tsize*sizeof(udict));
+      vdict[i]=malloc(tsize*sizeof(vdict));
+    }
+  
+  
+  /* Initialize dicts. */
+  for(i=0; i<tsize; i++)
+    {
+      udict[0][i]=1;
+      vdict[0][i]=1;
+    }
+
+
+  /* Fill the values from the in the dicts. The rows of the 
+      dicts act as a key to achieve a key-value functionality. */
+  for(i=1; i<=a_order; i++)
+    for(j=0; j<tsize; j++)
+      udict[i][j]=udict[i-1][j]*u[j];
+
+  for(i=1; i<=b_order; i++)
+    for(j=0; j<tsize; j++)
+      vdict[i][j]=vdict[i-1][j]*v[j];
+
+  /* Initialising uprime and vprime. */
+  for(i=0; i<tsize; i++)
+    {
+      uprime[i]=u[i];
+      vprime[i]=v[i];
+    }
+  
+
+  /* Populating forward coefficients on a grid. */
+  for(i=0; i<=a_order; i++)
+    for(j=0; j<=a_order-i; j++)
+      for(k=0; k<tsize; k++)
+        uprime[k]+=a_coeff[i][j]*udict[i][k]*vdict[j][k];
+
+  for(i=0; i<=b_order; i++)
+    for(j=0; j<=b_order-i; j++)
+      for(k=0; k<tsize; k++)
+        vprime[k]+=b_coeff[i][j]*udict[i][k]*vdict[j][k];
+
+
+  /*For a check.
+  for(i=0; i<=a_order; i++)
+    for(j=0; j<tsize; j++){
+      printf("udict[%ld][%ld] = %.8lf\n", i, j, uprime[j]);
+      printf("u%ld = %.10E\n", i, u[i]);
+  }
+  */
+  
+
+  /***********evalpoly ends***************/
+
+
+  /* Initialize dicts. */
+  for(i=0; i<tsize; i++)
+    {
+      updict[0][i]=1;
+      vpdict[0][i]=1;
+    }
+
+
+  /* Fill the values from the in the dicts. The rows of the 
+      dicts act as a key to achieve a key-value functionality. */
+  for(i=1; i<=ap_order; i++)
+    for(j=0; j<tsize; j++)
+      updict[i][j]=updict[i-1][j]*uprime[j];
+
+  for(i=1; i<=bp_order; i++)
+    for(j=0; j<tsize; j++)
+      vpdict[i][j]=vpdict[i-1][j]*vprime[j];
+
+
+
+  for(i=0; i<tsize; i++)
+    {
+      udiff[i]=u[i]-uprime[i];
+      vdiff[i]=v[i]-vprime[i];
+    }
+
+
+  /*For a check.
+  // for(i=0; i<=a_order; i++)
+    for(j=0; j<tsize; j++){
+      printf("updict[%ld][%ld] = %.8lf\n", i, j, udiff[j]);
+      // printf("updict[%ld][%ld] = %.8lf\n", i, j, vpdict[i][j]);
+  }
+  */
+
+
+
+  for(i=0; i<a_order; i++)
+    {
+      free(vdict[i]);
+      free(udict[i]);
+    }
+  free(vdict);
+  free(udict);
+
+  free(vdiff);
+  free(udiff);
+
+  free(vprime);
+  free(uprime);
+
+
+  for(i=0; i<ap_order; i++)
+    {
+      free(vpdict[i]);
+      free(updict[i]);
+    }
+  free(vpdict);
+  free(updict);
+
+}
 
 
 
@@ -526,8 +680,9 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
                         char *infile, 
                         char *inhdu)
 {
-  size_t i=0, j=0, k=0;
+  size_t tsize=0;
   double cd[2][2]={0};
+  size_t i=0, j=0, k=0;
   size_t naxis1, naxis2;
   double crpix1, crpix2;
   double *u=NULL, *v=NULL;
@@ -537,15 +692,18 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
 
   in=gal_fits_img_read(infile, inhdu, -1, 1);
 
-  naxis1=in->dsize[0];
-  naxis2=in->dsize[1];
+  naxis2=in->dsize[0];
+  naxis1=in->dsize[1];
 
   crpix1=wcs->crpix[0];
   crpix2=wcs->crpix[1];
 
+  tsize=(naxis1/4)*(naxis2/4);
+
+
   /* Allocate the size of u,v arrays. */
-  u=malloc((naxis1/4)*(naxis2/4)*sizeof(*u));
-  v=malloc((naxis2/4)*(naxis1/4)*sizeof(*u));
+  u=malloc(tsize*sizeof(*u));
+  v=malloc(tsize*sizeof(*v));
 
   for(i=0; i<naxis2; i+=4)
     for(j=0; j<naxis1; j+=4)
@@ -557,18 +715,18 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
       v[k++]=i-crpix2;
 
   /*For a check.
-  for(i=0; i<(naxis1/4)*(naxis2/4); i++)
-    printf("u%ld = %.10E\n", i, v[i]);
+  for(i=0; i<tsize; i++)
+    printf("u%ld = %.10E\n", i, u[i]);
   */
 
-  gal_wcs_get_sipparam(wcs, a_order, b_order, a_coeff, b_coeff, infile, inhdu);
-
-
+  gal_wcs_get_sipparam(wcs, &a_order, &b_order, a_coeff, b_coeff, infile, inhdu);
+  // printf("ss=%ld\n", a_order);
+  gal_wcs_fitreverse( u,v, a_order, b_order, naxis1, naxis2, a_coeff, b_coeff);
 
   free(v);
   free(u);
 
-}
+} 
 
 
 
@@ -850,14 +1008,13 @@ int main(){
 
     int nwcs;
 
-    /* Temporary defined variables. Ignored while testing.
+    /* Temporary defined variables. Ignore after testing.
     double tpvx[8][8]={0};
     double tpvy[8][8]={0};
     struct disprm *dis=NULL;
     double pv1[GAL_WCS_MAX_PVSIZE] = {0};
     double pv2[GAL_WCS_MAX_PVSIZE] = {0};
-    */
-   size_t a_order=0, b_order=0;
+    size_t a_order=0, b_order=0;
     double cd[2][2]={0};
     double crpix[2]={0};
     size_t naxis[2]={0};
@@ -865,6 +1022,7 @@ int main(){
     double tpvv[8][8]={0};
     double a_coeff[5][5]={0};
     double b_coeff[5][5]={0};
+    */
 
   /* Read wcs from fits file. */
   wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
@@ -876,6 +1034,7 @@ int main(){
 
   // get sip keywords. remove after testing.
   // gal_wcs_get_sipparam(wcs, a_order, b_order, a_coeff, b_coeff, infile, inhdu);
+  
   /* Read the data of the input file. */
   out=gal_fits_img_read(infile, inhdu, -1, 1);
 
