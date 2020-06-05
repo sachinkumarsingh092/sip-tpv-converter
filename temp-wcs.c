@@ -13,6 +13,9 @@
 #include <wcslib/wcslib.h>
 
 #include <gsl/gsl_linalg.h>
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_multifit.h>
 
 #include <gnuastro/wcs.h>
 #include <gnuastro/tile.h>
@@ -515,15 +518,20 @@ gal_wcs_fitreverse(double *u,
                  size_t naxis1, 
                  size_t naxis2,
                  double a_coeff[5][5],
-                 double b_coeff[5][5])
+                 double b_coeff[5][5],
+                 double ap_coeff[5][5],
+                 double bp_coeff[5][5])
 {
-  size_t i=0, j=0, k=0;
-  double *uprime=NULL, *vprime=NULL;
+  double chisq_ap, chisq_bp;
   double *udiff=NULL, *vdiff=NULL;
-  size_t tsize=(naxis1/4)*(naxis2/4);
+  double *uprime=NULL, *vprime=NULL;
   double **udict=NULL, **vdict=NULL;
+  size_t tsize=(naxis1/4)*(naxis2/4);
   double **updict=NULL, **vpdict=NULL;
+  gsl_vector *y_ap, *y_bp, *c_ap, *c_bp;
   size_t ap_order=a_order, bp_order=b_order;
+  gsl_matrix *X_ap, *X_bp, *cov_ap, *cov_bp;
+  size_t i=0, j=0, k=0, p_ap=0, p_bp=0, ij=0;
 
 
   /*Allocate updict and vpdict.*/
@@ -587,15 +595,26 @@ gal_wcs_fitreverse(double *u,
   /* Populating forward coefficients on a grid. */
   for(i=0; i<=a_order; i++)
     for(j=0; j<=a_order-i; j++)
-      for(k=0; k<tsize; k++)
-        uprime[k]+=a_coeff[i][j]*udict[i][k]*vdict[j][k];
+      {
+        for(k=0; k<tsize; k++)
+          uprime[k]+=a_coeff[i][j]*udict[i][k]*vdict[j][k];
+
+        /* The number of parameters for AP_* coefficients. */
+        p_ap++;
+      }
+
 
   for(i=0; i<=b_order; i++)
     for(j=0; j<=b_order-i; j++)
-      for(k=0; k<tsize; k++)
-        vprime[k]+=b_coeff[i][j]*udict[i][k]*vdict[j][k];
+        {
+          for(k=0; k<tsize; k++)
+            vprime[k]+=b_coeff[i][j]*udict[i][k]*vdict[j][k];
 
+          /* The number of parameters for BP_* coefficients. */
+          p_bp++;
+        }
 
+  // printf("p=%ld\n", p_ap);
   /*For a check.
   for(i=0; i<=a_order; i++)
     for(j=0; j<tsize; j++){
@@ -627,22 +646,134 @@ gal_wcs_fitreverse(double *u,
       vpdict[i][j]=vpdict[i-1][j]*vprime[j];
 
 
+  /* Allocate memory for Multi-parameter Linear Regressions. */
+  X_ap = gsl_matrix_alloc (tsize, p_ap);
+  X_bp = gsl_matrix_alloc (tsize, p_bp);
+  
+  y_ap = gsl_vector_alloc (tsize);
+  y_bp = gsl_vector_alloc (tsize);
+
+  c_ap = gsl_vector_alloc (p_ap);
+  c_bp = gsl_vector_alloc (p_bp);
+  
+  cov_ap = gsl_matrix_alloc (p_ap, p_ap);
+  cov_bp = gsl_matrix_alloc (p_bp, p_bp);
+
+
+
 
   for(i=0; i<tsize; i++)
     {
       udiff[i]=u[i]-uprime[i];
       vdiff[i]=v[i]-vprime[i];
+
+      gsl_vector_set (y_ap, i, udiff[i]);
+      gsl_vector_set (y_bp, i, vdiff[i]);
+
     }
 
 
+  /* Filling up he X_ap matrix in column-wise order. */ 
+  for(i=0; i<=ap_order; i++)
+    for(j=0; j<=ap_order-i; j++)
+      {
+        for(k=0; k<tsize; k++)
+          {
+            gsl_matrix_set (X_ap, k, ij, updict[i][k]*vpdict[j][k]);
+
+            /*For a check.
+            printf("x_ap[%ld] = %.8lf\n", ij, updict[i][k]*vpdict[j][k]);
+            */
+          }
+        ij++;
+      }
+
+
+  ij=0;
+  /* Filling up he X_bp matrix in column-wise order. */ 
+  for(i=0; i<=bp_order; i++)
+    for(j=0; j<=bp_order-i; j++)
+      {
+        for(k=0; k<tsize; k++)
+          {
+            gsl_matrix_set (X_bp, k, ij, updict[i][k]*vpdict[j][k]);
+            
+            /*For a check.
+            printf("x_bp[%ld] = %.8lf\n", ij, updict[i][k]*vpdict[j][k]);
+            */
+          }
+        ij++;
+      }
+
+
+
+  gsl_multifit_linear_workspace * work_ap = 
+        gsl_multifit_linear_alloc (tsize, p_ap);
+  gsl_multifit_linear_workspace * work_bp = 
+        gsl_multifit_linear_alloc (tsize, p_bp);
+
+  
+  gsl_multifit_linear (X_ap, y_ap, c_ap, cov_ap,
+                          &chisq_ap, work_ap);
+  gsl_multifit_linear (X_bp, y_bp, c_bp, cov_bp,
+                          &chisq_bp, work_bp);
+
+
+
+  p_ap=0;
+  for(i=0; i<=ap_order; i++)
+    {
+      for(j=0; j<=ap_order-i; j++)
+        {
+          ap_coeff[i][j]=gsl_vector_get(c_bp, p_ap);
+
+          /*For a check.
+          printf("AP_%ld_%ld = %.8E\n", i, j, gsl_vector_get(c_ap, p_ap));
+          */
+
+          p_ap++;
+        }
+    }
+
+  p_bp=0;
+  for(i=0; i<=bp_order; i++)
+    {
+      for(j=0; j<=bp_order-i; j++)
+        {
+          bp_coeff[i][j]=gsl_vector_get(c_bp, p_bp);
+
+          /*For a check.
+          printf("BP_%ld_%ld = %.8E\n", i, j, gsl_vector_get(c_bp, p_bp));
+          */
+
+          p_bp++;
+        }
+    }
+
+
+
   /*For a check.
-  // for(i=0; i<=a_order; i++)
+  for(i=0; i<p_ap; i++)
     for(j=0; j<tsize; j++){
-      printf("updict[%ld][%ld] = %.8lf\n", i, j, udiff[j]);
-      // printf("updict[%ld][%ld] = %.8lf\n", i, j, vpdict[i][j]);
+      printf("X[%ld][%ld] = %.8lf\n", i, j, gsl_matrix_get(X_ap, j, i));
   }
   */
 
+  /* Free memory and return.*/
+  gsl_multifit_linear_free (work_bp);
+  gsl_multifit_linear_free (work_ap);
+
+  gsl_matrix_free (cov_bp);
+  gsl_matrix_free (cov_ap);
+
+  gsl_vector_free (c_bp);
+  gsl_vector_free (c_ap);
+
+  gsl_vector_free (y_bp);
+  gsl_vector_free (y_ap);
+
+  gsl_matrix_free (X_bp);
+  gsl_matrix_free (X_ap);
 
 
   for(i=0; i<a_order; i++)
@@ -689,6 +820,7 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
   size_t a_order=0, b_order=0;
   double tpvu[8][8]={0}, tpvv[8][8]={0};
   double a_coeff[5][5]={0}, b_coeff[5][5]={0};
+  double ap_coeff[5][5]={0}, bp_coeff[5][5]={0};
 
   in=gal_fits_img_read(infile, inhdu, -1, 1);
 
@@ -721,7 +853,8 @@ gal_wcs_add_revkeywords(struct wcsprm *wcs,
 
   gal_wcs_get_sipparam(wcs, &a_order, &b_order, a_coeff, b_coeff, infile, inhdu);
   // printf("ss=%ld\n", a_order);
-  gal_wcs_fitreverse( u,v, a_order, b_order, naxis1, naxis2, a_coeff, b_coeff);
+  gal_wcs_fitreverse(u, v, a_order, b_order, naxis1, naxis2, 
+                     a_coeff, b_coeff, a_coeff, b_coeff);
 
   free(v);
   free(u);
@@ -1034,7 +1167,7 @@ int main(){
 
   // get sip keywords. remove after testing.
   // gal_wcs_get_sipparam(wcs, a_order, b_order, a_coeff, b_coeff, infile, inhdu);
-  
+
   /* Read the data of the input file. */
   out=gal_fits_img_read(infile, inhdu, -1, 1);
 
