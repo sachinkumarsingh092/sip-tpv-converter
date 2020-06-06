@@ -806,7 +806,7 @@ gal_wcs_fitreverse(double *u,
 /* Add wcs to read crpix and naxisn here
     instead of read_sipparams.*/
 void
-gal_wcs_add_revkeywords(struct wcsprm *wcs,
+gal_wcs_get_revkeyvalues(struct wcsprm *wcs,
                         gal_data_t *in,
                         double ap_coeff[5][5], 
                         double bp_coeff[5][5],
@@ -980,7 +980,7 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
       ap_order=a_order;
       bp_order=b_order;
 
-      gal_wcs_add_revkeywords(wcs, in, ap_coeff, bp_coeff, infile, inhdu);
+      gal_wcs_get_revkeyvalues(wcs, in, ap_coeff, bp_coeff, infile, inhdu);
 
       for(m=0; m<=ap_order; m++)
         for(n=0; n<=ap_order-m; n++)
@@ -1199,8 +1199,6 @@ int main(){
   // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
   // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
-  // get sip keywords. remove after testing.
-  // gal_wcs_get_sipparam(wcs, a_order, b_order, a_coeff, b_coeff, infile, inhdu);
 
   /* Read the data of the input file. */
   out=gal_fits_img_read(infile, inhdu, -1, 1);
