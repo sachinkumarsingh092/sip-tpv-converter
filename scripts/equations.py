@@ -1,14 +1,11 @@
+import sys
 import numpy as np
 from sympy import symbols, Matrix, poly
 
 
 ''' 
-A better implementation is:
-pv1 = symbols(pv1_0:39)
-and then using individual elements like pv1[0]...etc.
+Generate intermidate polynomials used for SIP or PV conversion.
 '''
-
-
 
 ############## For PV->SIP #############
 pv1 = symbols("pv1_0:39")
@@ -16,8 +13,8 @@ pv2 = symbols("pv2_0:39")
 
 
 u, v = symbols("u v")
-CD11, CD12, CD21, CD22 = symbols("CD11 CD12 CD21 CD22 ")
-cd = Matrix([[CD11,CD12],[CD21,CD22]])
+cd11, cd12, cd21, cd22 = symbols("cd[0][0] cd[0][1] cd[1][0] cd[1][1]")
+cd = Matrix([[cd11,cd12],[cd21,cd22]])
 x, y = cd*Matrix([u, v])
 cd_inverse=cd**-1
 
@@ -54,8 +51,17 @@ tpvv.expand()
 
 ############For SIP->PV#############
 x, y = symbols('x y')
-CD_INV11, CD_INV12, CD_INV21, CD_INV22 = symbols("CD_INV11 CD_INV12 CD_INV21 CD_INV22 ")
-cd_inverse = Matrix([[CD_INV11,CD_INV12],[CD_INV21,CD_INV22]])
+cd_inv11, cd_inv12, cd_inv21, cd_inv22 = symbols("cd_inv[0][0] cd_inv[0][1] cd_inv[1][0] cd_inv[1][1] ")
+cd_inverse = Matrix([[cd_inv11,cd_inv12],[cd_inv21,cd_inv22]])
+
+tpvx = pv1[0] + pv1[1]*x + pv1[2]*y + pv1[4]*x**2 + pv1[5]*x*y + pv1[6]*y**2 + \
+    pv1[7]*x**3 + pv1[8]*x**2*y + pv1[9]*x*y**2 + pv1[10]*y**3 +  \
+    pv1[12]*x**4 + pv1[13]*x**3*y + pv1[14]*x**2*y**2 + pv1[15]*x*y**3 + pv1[16]*y**4
+
+
+tpvy = pv2[0] + pv2[1]*y + pv2[2]*x + pv2[4]*y**2 + pv2[5]*y*x + pv2[6]*x**2 + \
+    pv2[7]*y**3 + pv2[8]*y**2*x + pv2[9]*y*x**2 + pv2[10]*x**3 + \
+    pv2[12]*y**4 + pv2[13]*y**3*x + pv2[14]*y**2*x**2 + pv2[15]*y*x**3 + pv2[16]*x**4 
 
 uprime, vprime = cd_inverse*Matrix([x, y])
 usum = uprime
@@ -81,5 +87,41 @@ for i in range(5):
 
 sipx, sipy = cd*Matrix([usum, vsum])
 
-print(poly(sipx.expand()))
+sipx = poly(sipx).as_expr()
+sipy = poly(sipy).as_expr()
+
+# print(sipx)
+
+
+
+# Extract coefficients
+pvinx1=int(sys.argv[1])
+pvinx2=int(sys.argv[2])
+
+
+if pvinx1 == 1:
+    expr1 = tpvx
+    expr2 = sipx
+elif pvinx1 == 2:
+    expr1 = tpvy
+    expr2 = sipy
+
+
+pvar = symbols('pv%d_%d' % (pvinx1, pvinx2))
+
+xord = yord = 0
+if expr1.coeff(pvar).has(x):
+    xord = poly(expr1.coeff(pvar)).degree(x)
+if expr1.coeff(pvar).has(y):
+    yord = poly(expr1.coeff(pvar)).degree(y)
+
+print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV =>\n")
+
+val = expr2.coeff(x, xord).coeff(y, yord)
+
+print(val)
+
+# print(poly(sipx))
+# print('\n\n')
+# print(poly(sipy))
 
