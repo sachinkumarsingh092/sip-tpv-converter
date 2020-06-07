@@ -25,7 +25,7 @@
 #include <gnuastro/permutation.h>
 
 static void
-gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8],
+gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8], \
                    char *infile, char *inhdu);
 static double
 gal_wcs_calcsip(size_t axis, size_t m, size_t n, \
@@ -60,9 +60,9 @@ gal_wcs_calcsip(size_t axis, size_t m, size_t n, \
 
 /* add filename etc. parameters later.*/
 static void
-gal_wcs_get_tpvparams(struct wcsprm *wcs, 
+gal_wcs_get_tpvparams(struct wcsprm *wcs,
                       double cd[2][2],
-                      double *pv1, 
+                      double *pv1,
                       double *pv2)
 {
   size_t i, j, k,index=0;
@@ -73,7 +73,7 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
   // printf("==>%lf\n",(wcs->cd)[0]);
 
   /* TODO:
-     [ ]Throw error if a valuse of fits file is not present. 
+     [ ]Throw error if a valuse of fits file is not present.
      [x]Also account for the missing PV terms in final arrays.
      */
 
@@ -100,7 +100,7 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
         index = pv_m;
 
         // printf("%d %d\n", index, pv_m);
-        if( wcs->pv[pv_m].value != 0 && index == pv_m ) 
+        if( wcs->pv[pv_m].value != 0 && index == pv_m )
           pv1[index]=wcs->pv[j].value;
         else
           pv1[index]=0;
@@ -117,9 +117,9 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
         /* `index` is the index of the pv* array.*/
         index = pv_m;
         // printf("%d %d\n", index, pv_m);
-        if( wcs->pv[pv_m].value != 0 && index == pv_m ) 
+        if( wcs->pv[pv_m].value != 0 && index == pv_m )
           pv2[index]=wcs->pv[j].value;
-        else                    
+        else
           pv2[index]=0;
 
         /* For a check
@@ -141,16 +141,83 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
 
 
 
+
+static void
+gal_wcs_get_sipparams(struct wcsprm *wcs,
+                      double cd[2][2],
+                      double a_coeff[5][5],
+                      double b_coeff[5][5])
+{
+  const char *cp;
+  double keyval=0;
+  double *temp_cd=NULL;
+  struct dpkey  *keyp=NULL;
+  struct disprm *dispre=NULL;
+  size_t i=0, j=0, m=0, n=0, k=0;
+
+  dispre=wcs->lin.dispre;
+  keyp = dispre->dp;
+
+  temp_cd=gal_wcs_warp_matrix(wcs);
+
+
+  for(i=0,k=0; i<2; i++)
+    for(j=0; j<2; j++)
+      {
+        /* If a value is present store it, else store 0.*/
+        if(temp_cd[k] != 0)   cd[i][j]=temp_cd[k++];
+        else                  cd[i][j]=0;
+
+        /* For a check:
+        printf("CD%ld_%ld\t%.10E\n", i+1, j+1, cd[i][j]);
+        */
+      }
+
+
+  for (i = 0; i < dispre->ndp; i++, keyp++) 
+    {
+      if (keyp->j == 1)
+        {
+          if ((keyval = dpkeyd(keyp)) == 0.0) continue;
+
+          cp = strchr(keyp->field, '.') + 1;
+          if (strncmp(cp, "SIP.FWD.", 8) != 0) continue;
+          cp += 8;
+
+          sscanf(cp, "%ld_%ld", &m, &n);
+
+          /*For a check.
+          printf("A_%ld_%ld =\t %.10E\n", m, n, dispre->dp[i].value.f);
+          */
+        }
+      else if (keyp->j == 2)
+        {
+          if ((keyval = dpkeyd(keyp)) == 0.0) continue;
+
+          cp = strchr(keyp->field, '.') + 1;
+          if (strncmp(cp, "SIP.FWD.", 8) != 0) continue;
+          cp += 8;
+
+          sscanf(cp, "%ld_%ld", &m, &n);
+
+          /*For a check.
+          printf("B_%ld_%ld =\t %.10E\n", m, n, dispre->dp[i].value.f);
+          */
+        }
+    }
+}
+
+
 /*char *infile, inhdu in, naxis, npix to be
  transfered in main sip wrirting function from here.*/
 
 static void
-gal_wcs_get_sipparam(struct wcsprm *wcs,
+gal_wcs_get_sipcoeff(struct wcsprm *wcs,
                       size_t *a_order,
                       size_t *b_order,
                       double a_coeff[5][5],
-                      double b_coeff[5][5],         
-                      char *infile, 
+                      double b_coeff[5][5],
+                      char *infile,
                       char *inhdu)
 {
   size_t m, n;
@@ -158,7 +225,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
   size_t i, j, k;
   double cd[2][2]={0};
   double tpvu[8][8]={0}, tpvv[8][8]={0};
-  
+
 
   gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
 
@@ -174,7 +241,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
         printf("CD%ld_%ld\t%.10lf\n", i+1, j+1, cd[i][j]);
         */
       }
-  
+
   for(m=0; m<=4; m++)
     for(n=0; n<=4; n++)
       {
@@ -187,7 +254,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
           }
         else
           a_coeff[m][n]=0;
-        
+
         /*For axis = 2*/
         val=gal_wcs_calcsip(2, m, n, tpvu, tpvv);
         if(val != 0)
@@ -198,7 +265,7 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
         else
           b_coeff[m][n]=0;
       }
-  
+
   /*For a check.
   for(m=0;m<=4;m++)
     for(n=0;n<=4;n++)
@@ -216,16 +283,16 @@ gal_wcs_get_sipparam(struct wcsprm *wcs,
 /* Maybe tpv* matrix maybe not needed for this task.
    Remove it if redundant. */
 static void
-gal_wcs_compute_tpv(double cd[2][2], 
-                    double *pv1, 
+gal_wcs_compute_tpv(double cd[2][2],
+                    double *pv1,
                     double *pv2,
-                    double k[5][5], 
+                    double k[5][5],
                     double l[5][5])
 {
   size_t i, j;
 
-  /* The indexes of the tpv* matrices are the exponents of x and y in 
-     a TPV distortion equation leaving out radial terms 
+  /* The indexes of the tpv* matrices are the exponents of x and y in
+     a TPV distortion equation leaving out radial terms
      PV[1,3], PV[1,11], PV[1,23], PV[1,39] */
 
   /* Intermidate polynomials, k[i][j] and l[i][j].  */
@@ -254,7 +321,7 @@ gal_wcs_compute_tpv(double cd[2][2],
             cd[0][0]*cd[1][1]*pv2[5]+ \
             cd[0][1]*cd[1][0]*pv2[5]+ \
           2*cd[1][0]*cd[1][1]*pv2[4];
-  
+
   k[2][0]=cd[0][0]*cd[0][0]*pv1[4]+ \
           cd[0][0]*cd[1][0]*pv1[5]+ \
           cd[1][0]*cd[1][0]*pv1[6];
@@ -320,8 +387,8 @@ gal_wcs_compute_tpv(double cd[2][2],
           cd[0][1]*cd[0][1]*cd[1][1]*cd[1][1]*pv2[14]+ \
           cd[0][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[13]+ \
           cd[1][1]*cd[1][1]*cd[1][1]*cd[1][1]*pv2[12];
- 
-  
+
+
   k[1][3]=4*cd[0][0]*cd[0][1]*cd[0][1]*cd[0][1]*pv1[12]+ \
           3*cd[0][0]*cd[0][1]*cd[0][1]*cd[1][1]*pv1[13]+ \
           2*cd[0][0]*cd[0][1]*cd[1][1]*cd[1][1]*pv1[14]+ \
@@ -358,7 +425,7 @@ gal_wcs_compute_tpv(double cd[2][2],
             cd[0][1]*cd[0][1]*cd[1][0]*cd[1][0]*pv2[14]+ \
           3*cd[0][1]*cd[1][0]*cd[1][0]*cd[1][1]*pv2[13]+ \
           6*cd[1][0]*cd[1][0]*cd[1][1]*cd[1][1]*pv2[12];
-  
+
   k[3][1]=4*cd[0][0]*cd[0][0]*cd[0][0]*cd[0][1]*pv1[12]+ \
             cd[0][0]*cd[0][0]*cd[0][0]*cd[1][1]*pv1[13]+ \
           3*cd[0][0]*cd[0][0]*cd[0][1]*cd[1][0]*pv1[13]+ \
@@ -407,10 +474,10 @@ gal_wcs_compute_tpv(double cd[2][2],
 
 
 static void
-gal_wcs_real_tpveq(double cd[2][2], 
+gal_wcs_real_tpveq(double cd[2][2],
                    double tpvu[8][8],
                    double tpvv[8][8],
-                   char *infile, 
+                   char *infile,
                    char *inhdu)
 {
   /* tpvu and tpvv are u-v distortion equations in TPV convention. */
@@ -425,7 +492,7 @@ gal_wcs_real_tpveq(double cd[2][2],
   // double tpv1[8][8]={0}, tpv2[8][8]={0};
 
 
-  wcs=gal_wcs_read(infile, inhdu, 0, 0, &a); 
+  wcs=gal_wcs_read(infile, inhdu, 0, 0, &a);
 
   gal_wcs_get_tpvparams(wcs, cd, pv1, pv2);
 
@@ -433,9 +500,9 @@ gal_wcs_real_tpveq(double cd[2][2],
 
 
   /* We will find matrix tpvu and tpvv by finding inverse of
-     CD matrix and multiplying with tpv* matrix. 
+     CD matrix and multiplying with tpv* matrix.
      For inverse of a 2x2 matrix we use the below trasformations:
-              inverse(|a  b|) =  1 *|d  -b| 
+              inverse(|a  b|) =  1 *|d  -b|
                       |c  d|    |A| |-c  a|
       where |A| is the determinant of the matrix which is calculated by:
                           |A| = a*d-b*c.
@@ -456,7 +523,7 @@ gal_wcs_real_tpveq(double cd[2][2],
   printf("%.10lf\n", determinant);
   */
 
-  /* For matrix tpvv and tpvu, we have to use the following 
+  /* For matrix tpvv and tpvu, we have to use the following
      matrix equation:
 
                   |tpvu| = cd_inv*|k[i][j]|
@@ -484,8 +551,8 @@ gal_wcs_real_tpveq(double cd[2][2],
 /* Calculate the SIP coefficients from CD matrix
     parameters and PV coefficients. */
 static double
-gal_wcs_calcsip(size_t axis, 
-                size_t m, 
+gal_wcs_calcsip(size_t axis,
+                size_t m,
                 size_t n,
                 double tpvu[8][8],
                 double tpvv[8][8])
@@ -515,7 +582,7 @@ gal_wcs_fitreverse(double *u,
                  double *v,
                  size_t a_order,
                  size_t b_order,
-                 size_t naxis1, 
+                 size_t naxis1,
                  size_t naxis2,
                  double a_coeff[5][5],
                  double b_coeff[5][5],
@@ -564,8 +631,8 @@ gal_wcs_fitreverse(double *u,
       udict[i]=malloc(tsize*sizeof(udict));
       vdict[i]=malloc(tsize*sizeof(vdict));
     }
-  
-  
+
+
   /* Initialize dicts. */
   for(i=0; i<tsize; i++)
     {
@@ -574,7 +641,7 @@ gal_wcs_fitreverse(double *u,
     }
 
 
-  /* Fill the values from the in the dicts. The rows of the 
+  /* Fill the values from the in the dicts. The rows of the
       dicts act as a key to achieve a key-value functionality. */
   for(i=1; i<=a_order; i++)
     for(j=0; j<tsize; j++)
@@ -590,7 +657,7 @@ gal_wcs_fitreverse(double *u,
       uprime[i]=u[i];
       vprime[i]=v[i];
     }
-  
+
 
   /* Populating forward coefficients on a grid. */
   for(i=0; i<=a_order; i++)
@@ -622,7 +689,7 @@ gal_wcs_fitreverse(double *u,
       printf("u%ld = %.10E\n", i, u[i]);
   }
   */
-  
+
 
   /***********evalpoly ends***************/
 
@@ -635,7 +702,7 @@ gal_wcs_fitreverse(double *u,
     }
 
 
-  /* Fill the values from the in the dicts. The rows of the 
+  /* Fill the values from the in the dicts. The rows of the
       dicts act as a key to achieve a key-value functionality. */
   for(i=1; i<=ap_order; i++)
     for(j=0; j<tsize; j++)
@@ -649,13 +716,13 @@ gal_wcs_fitreverse(double *u,
   /* Allocate memory for Multi-parameter Linear Regressions. */
   X_ap = gsl_matrix_alloc (tsize, p_ap);
   X_bp = gsl_matrix_alloc (tsize, p_bp);
-  
+
   y_ap = gsl_vector_alloc (tsize);
   y_bp = gsl_vector_alloc (tsize);
 
   c_ap = gsl_vector_alloc (p_ap);
   c_bp = gsl_vector_alloc (p_bp);
-  
+
   cov_ap = gsl_matrix_alloc (p_ap, p_ap);
   cov_bp = gsl_matrix_alloc (p_bp, p_bp);
 
@@ -673,7 +740,7 @@ gal_wcs_fitreverse(double *u,
     }
 
 
-  /* Filling up he X_ap matrix in column-wise order. */ 
+  /* Filling up he X_ap matrix in column-wise order. */
   for(i=0; i<=ap_order; i++)
     for(j=0; j<=ap_order-i; j++)
       {
@@ -690,14 +757,14 @@ gal_wcs_fitreverse(double *u,
 
 
   ij=0;
-  /* Filling up he X_bp matrix in column-wise order. */ 
+  /* Filling up he X_bp matrix in column-wise order. */
   for(i=0; i<=bp_order; i++)
     for(j=0; j<=bp_order-i; j++)
       {
         for(k=0; k<tsize; k++)
           {
             gsl_matrix_set (X_bp, k, ij, updict[i][k]*vpdict[j][k]);
-            
+
             /*For a check.
             printf("x_bp[%ld] = %.8lf\n", ij, updict[i][k]*vpdict[j][k]);
             */
@@ -707,12 +774,12 @@ gal_wcs_fitreverse(double *u,
 
 
 
-  gsl_multifit_linear_workspace * work_ap = 
+  gsl_multifit_linear_workspace * work_ap =
         gsl_multifit_linear_alloc (tsize, p_ap);
-  gsl_multifit_linear_workspace * work_bp = 
+  gsl_multifit_linear_workspace * work_bp =
         gsl_multifit_linear_alloc (tsize, p_bp);
 
-  
+
   gsl_multifit_linear (X_ap, y_ap, c_ap, cov_ap,
                           &chisq_ap, work_ap);
   gsl_multifit_linear (X_bp, y_bp, c_bp, cov_bp,
@@ -808,9 +875,9 @@ gal_wcs_fitreverse(double *u,
 void
 gal_wcs_get_revkeyvalues(struct wcsprm *wcs,
                         gal_data_t *in,
-                        double ap_coeff[5][5], 
+                        double ap_coeff[5][5],
                         double bp_coeff[5][5],
-                        char *infile, 
+                        char *infile,
                         char *inhdu)
 {
   size_t tsize=0;
@@ -839,7 +906,7 @@ gal_wcs_get_revkeyvalues(struct wcsprm *wcs,
   for(i=0; i<naxis2; i+=4)
     for(j=0; j<naxis1; j+=4)
       u[k++]=j-crpix1;
-  
+
   k=0;
   for(i=0; i<naxis2; i+=4)
     for(j=0; j<naxis1; j+=4)
@@ -850,16 +917,16 @@ gal_wcs_get_revkeyvalues(struct wcsprm *wcs,
     printf("u%ld = %.10E\n", i, u[i]);
   */
 
-  gal_wcs_get_sipparam(wcs, &a_order, &b_order, a_coeff, b_coeff, infile, inhdu);
+  gal_wcs_get_sipcoeff(wcs, &a_order, &b_order, a_coeff, b_coeff, infile, inhdu);
 
-  gal_wcs_fitreverse(u, v, a_order, b_order, naxis1, naxis2, 
+  gal_wcs_fitreverse(u, v, a_order, b_order, naxis1, naxis2,
                      a_coeff, b_coeff, ap_coeff, bp_coeff);
 
 
   free(v);
   free(u);
 
-} 
+}
 
 
 
@@ -867,15 +934,15 @@ gal_wcs_get_revkeyvalues(struct wcsprm *wcs,
 
 
 
-char *  
+char *
 gal_wcs_add_sipkeywords(struct wcsprm *wcs,
                         gal_data_t *in,
                         double tpvu[8][8],
                         double tpvv[8][8],
                         double cd[2][2],
-                        char *infile, 
-                        char *inhdu, 
-                        int add_reverse, 
+                        char *infile,
+                        char *inhdu,
+                        int add_reverse,
                         int *nkeys)
 {
   double val=0;
@@ -885,16 +952,16 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
   size_t ap_order=0, bp_order=0;
   size_t m, n, num=0, numkey=100;
   double ap_coeff[5][5]={0}, bp_coeff[5][5]={0};
-  char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10];
-  
+  char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10], cdkey[10];
+
   *nkeys = 0;
 
   /* The format for each card. */
   sprintf(fmt, "%%-8s= %%20.12E%%50s");
 
   gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
-  
-  
+
+
   /* Allcate memory for cards. */
   fullheader = malloc(numkey*80);
 
@@ -913,15 +980,23 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
         sprintf(pcaxis, "PC%d_%d", i, j);
         sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", pcaxis, wcs->pc[k++], "");
       }
+  
+  k=0;
+  for(i=1; i<=size; i++)
+    for(j=1; j<=size; j++)
+      {
+        sprintf(cdkey, "CD%d_%d", i, j);
+        sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", cdkey, wcs->cd[k++], "");
+      }
 
   for(i=1; i<=size; i++)
-    { 
+    {
       sprintf(keyaxis, "CDELT%d", i);
       sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", keyaxis, wcs->cdelt[i-1], "");
     }
 
   for(i=1; i<=size; i++)
-    { 
+    {
       sprintf(keyaxis, "CUNIT%d", i);
       sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", keyaxis, wcs->cunit[i-1]);
     }
@@ -930,14 +1005,14 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %-70s", "CTYPE2", "'DEC--TAN-SIP'");
 
   for(i=1; i<=size; i++)
-    { 
+    {
       sprintf(keyaxis, "CRVAL%d", i);
       sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.10lf%50s", keyaxis, wcs->crval[i-1], "");
     }
-  
+
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LONPOLE", wcs->lonpole, "");
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", "LATPOLE", wcs->latpole, "");
-  
+
   for(i=1; i<=size; i++)
     sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.1lf%50s", "MJDREFI", wcs->mjdref[i-1], "");
 
@@ -958,7 +1033,7 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
             sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
             a_order=max(a_order, max(m,n));
           }
-        
+
         /*For axis = 2*/
         val=gal_wcs_calcsip(2, m, n, tpvu, tpvv);
         if(val != 0)
@@ -968,13 +1043,13 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
             sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
             b_order=max(b_order, max(m,n));
           }
-        
+
       }
-  
+
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "A_ORDER", a_order, "");
   sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20ld%50s", "B_ORDER", b_order, "");
 
-  
+
   if( add_reverse )
     {
       ap_order=a_order;
@@ -993,7 +1068,7 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
                 sprintf(sipkey, "AP_%ld_%ld", m, n);
                 sprintf(fullheader+(FLEN_CARD-1)*num++, fmt, sipkey, val, "");
               }
-            
+
             /*For axis = 2*/
             val=bp_coeff[m][n];
             if(val != 0)
@@ -1040,7 +1115,7 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs,
   struct wcsprm *outwcs=NULL;
   double cd[2][2]={0};
   double tpvu[8][8] ={0}, tpvv[8][8]={0};
-  
+
   char *fullheader=gal_wcs_add_sipkeywords(inwcs, in, tpvu, tpvv, cd, infile, inhdu, 1, &nkeys);
 
 
@@ -1049,7 +1124,7 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs,
   status=wcspih(fullheader, nkeys, relax, ctrl, &nreject, &nwcs, &outwcs);
   if( outwcs == NULL )
   {
-    
+
     fprintf(stderr, "\n##################\n"
             "WCSLIB Warning: wcspih ERROR %d: %s.\n"
             "##################\n",
@@ -1144,9 +1219,9 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs,
         }
     }
 
-  /*For a check.
+  // /* For a check.
     wcsprt(outwcs);
-  */
+  // */
 
   /* Clean up and return. */
   status=0;
@@ -1166,9 +1241,10 @@ int main(){
     gal_data_t *out=NULL;
     // struct linprm *lin=NULL;
     // struct wcsprm *tempwcs=NULL;
+    double *dparm;
     struct wcsprm *wcs=NULL;
     struct wcsprm *outwcs=NULL;
-    // struct disprm *disseq=NULL;
+    // struct disprm *dispre=NULL;
     // gal_fits_list_key_t *headers;
     char *outfile="./test-fits/test-sip.fits";
     char *infile="./test-fits/test-pv.fits", *inhdu="1";
@@ -1182,38 +1258,46 @@ int main(){
     double pv1[GAL_WCS_MAX_PVSIZE] = {0};
     double pv2[GAL_WCS_MAX_PVSIZE] = {0};
     size_t a_order=0, b_order=0;
-    double cd[2][2]={0};
     double crpix[2]={0};
     size_t naxis[2]={0};
     double tpvu[8][8]={0};
     double tpvv[8][8]={0};
+    */
     double a_coeff[5][5]={0};
     double b_coeff[5][5]={0};
-    */
-
-  /* Read wcs from fits file. */
-  wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
-  gal_wcs_decompose_pc_cdelt(wcs);
+    double cd[2][2]={0};
+  
 
 
-  // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
-  // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
+  // /* Read wcs from fits file. */
+  // wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
+  // gal_wcs_decompose_pc_cdelt(wcs);
+
+  // printf("cd=%.10E\n", wcs->cd[1]);
+  // // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  // // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
 
-  /* Read the data of the input file. */
-  out=gal_fits_img_read(infile, inhdu, -1, 1);
+  // /* Read the data of the input file. */
+  // out=gal_fits_img_read(infile, inhdu, -1, 1);
 
-  outwcs=gal_wcs_tpv2sip(wcs, out, infile, inhdu);
+  // outwcs=gal_wcs_tpv2sip(wcs, out, infile, inhdu);
   // wcsprt(outwcs);
 
+  // /* Write the modified header into the fits file.  */
+  // out->wcs=outwcs;
+  // out->nwcs=1;
 
-  /* Write the modified header into the fits file.  */
-  out->wcs=outwcs;
-  out->nwcs=1;
+  // gal_fits_img_write(out, outfile, NULL, NULL);
+  // gal_data_free(out);
 
-  gal_fits_img_write(out, outfile, NULL, NULL);
-  gal_data_free(out);
+  wcs=gal_wcs_read(outfile, inhdu, 0, 0, &nwcs);
+  // gal_wcs_decompose_pc_cdelt(wcs);
+  // out=gal_fits_img_read(outfile, inhdu, -1, 1);
+  // wcsprt(wcs);
 
+  gal_wcs_get_sipparams(wcs, cd, a_coeff, b_coeff);
   
+
   return 0;
 }

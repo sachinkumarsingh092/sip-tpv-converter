@@ -67,14 +67,14 @@ uprime, vprime = cd_inverse*Matrix([x, y])
 usum = uprime
 vsum = vprime
 
-A=symbols('A_0_0 A_0_1 A_0_2 A_0_3 A_0_4  \
-            A_1_0 A_1_1 A_1_2 A_1_3 A_2_0 \
-            A_2_1 A_2_2 A_3_0 A_3_1 A_4_0')
+A=symbols('a_coeff[0][0] a_coeff[0][1] a_coeff[0][2] a_coeff[0][3] a_coeff[0][4]  \
+            a_coeff[1][0] a_coeff[1][1] a_coeff[1][2] a_coeff[1][3] a_coeff[2][0] \
+            a_coeff[2][1] a_coeff[2][2] a_coeff[3][0] a_coeff[3][1] a_coeff[4][0]')
 
 
-B=symbols('B_0_0 B_0_1 B_0_2 B_0_3 B_0_4  \
-            B_1_0 B_1_1 B_1_2 B_1_3 B_2_0 \
-            B_2_1 B_2_2 B_3_0 B_3_1 B_4_0')
+B=symbols('b_coeff[0][0] b_coeff[0][1] b_coeff[0][2] b_coeff[0][3] b_coeff[0][4]  \
+            b_coeff[1][0] b_coeff[1][1] b_coeff[1][2] b_coeff[1][3] b_coeff[2][0] \
+            b_coeff[2][1] b_coeff[2][2] b_coeff[3][0] b_coeff[3][1] b_coeff[4][0]')
 
 k=0
 for i in range(5):
@@ -115,7 +115,7 @@ if expr1.coeff(pvar).has(x):
 if expr1.coeff(pvar).has(y):
     yord = poly(expr1.coeff(pvar)).degree(y)
 
-print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV =>\n")
+print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV =>")
 
 val = expr2.coeff(x, xord).coeff(y, yord)
 
