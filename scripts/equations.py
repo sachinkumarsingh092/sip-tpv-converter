@@ -115,11 +115,16 @@ if expr1.coeff(pvar).has(x):
 if expr1.coeff(pvar).has(y):
     yord = poly(expr1.coeff(pvar)).degree(y)
 
-print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV =>")
-
 val = expr2.coeff(x, xord).coeff(y, yord)
 
-print(val)
+if pvinx1 == 1:
+    pvinx1-=1
+    print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV => \n\
+pv1[{pvinx2}]={val};")
+elif pvinx1 == 2:
+    pvinx1-=1
+    print(f"\nCoefficient of x**{xord}*y**{yord} which translates to {pvar} in PV => \n\
+pv2[{pvinx2}]={val};")
 
 # print(poly(sipx))
 # print('\n\n')

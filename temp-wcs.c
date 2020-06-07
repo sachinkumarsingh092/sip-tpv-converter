@@ -25,7 +25,7 @@
 #include <gnuastro/permutation.h>
 
 static void
-gal_wcs_real_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8], \
+gal_wcs_calc_tpveq(double cd[2][2], double tpvu[8][8], double tpvv[8][8], \
                    char *infile, char *inhdu);
 static double
 gal_wcs_calcsip(size_t axis, size_t m, size_t n, \
@@ -105,8 +105,7 @@ gal_wcs_get_tpvparams(struct wcsprm *wcs,
         else
           pv1[index]=0;
 
-        /* For a check
-        printf("PV1_%d\t%.10f\n", index, pv1[index]);
+        /* For ==> PVi_%dn", index, pv1[index]);
         */
       }
     else if(wcs->pv[j].i == 2)
@@ -156,7 +155,7 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
   size_t i=0, j=0, m=0, n=0, k=0;
 
   dispre=wcs->lin.dispre;
-  keyp = dispre->dp;
+  keyp=dispre->dp;
 
   temp_cd=gal_wcs_warp_matrix(wcs);
 
@@ -174,7 +173,7 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
       }
 
 
-  for (i = 0; i < dispre->ndp; i++, keyp++) 
+  for (i = 0; i < dispre->ndp; i++, keyp++)
     {
       if (keyp->j == 1)
         {
@@ -185,6 +184,8 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
           cp += 8;
 
           sscanf(cp, "%ld_%ld", &m, &n);
+
+          a_coeff[m][n]=dispre->dp[i].value.f;
 
           /*For a check.
           printf("A_%ld_%ld =\t %.10E\n", m, n, dispre->dp[i].value.f);
@@ -200,12 +201,17 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
 
           sscanf(cp, "%ld_%ld", &m, &n);
 
+          b_coeff[m][n]=dispre->dp[i].value.f;
+
           /*For a check.
           printf("B_%ld_%ld =\t %.10E\n", m, n, dispre->dp[i].value.f);
           */
         }
     }
 }
+
+
+
 
 
 /*char *infile, inhdu in, naxis, npix to be
@@ -227,7 +233,7 @@ gal_wcs_get_sipcoeff(struct wcsprm *wcs,
   double tpvu[8][8]={0}, tpvv[8][8]={0};
 
 
-  gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  gal_wcs_calc_tpveq(cd, tpvu, tpvv, infile, inhdu);
 
 
   for(i=0,k=0; i<2; i++)
@@ -283,7 +289,7 @@ gal_wcs_get_sipcoeff(struct wcsprm *wcs,
 /* Maybe tpv* matrix maybe not needed for this task.
    Remove it if redundant. */
 static void
-gal_wcs_compute_tpv(double cd[2][2],
+gal_wcs_intermidate_tpveq(double cd[2][2],
                     double *pv1,
                     double *pv2,
                     double k[5][5],
@@ -471,10 +477,397 @@ gal_wcs_compute_tpv(double cd[2][2],
 
 
 
+static void
+gal_wcs_intermidate_sipeq(double cd[2][2],
+                          double cd_inv[2][2],
+                          double a_coeff[5][5],
+                          double b_coeff[5][5],
+                          double *pv1,
+                          double *pv2)
+{
+  size_t i, j;
+
+  /* Intemidiate equations which give the value of PV.
+     First index is the axis and second index is the coefficient
+     number in the original tpv* equation. */
+
+    // pvi_0  
+  pv1[0]=a_coeff[0][0]*cd[0][0] + b_coeff[0][0]*cd[0][1];
+  pv2[0]=a_coeff[0][0]*cd[1][0] + b_coeff[0][0]*cd[1][1];
+
+
+    // pvi_1  
+  pv1[1]=a_coeff[0][1]*cd[0][0]*cd_inv[1][0]+\
+        a_coeff[1][0]*cd[0][0]*cd_inv[0][0]+\
+        b_coeff[0][1]*cd[0][1]*cd_inv[1][0]+\
+        b_coeff[1][0]*cd[0][1]*cd_inv[0][0]+\
+        cd[0][0]*cd_inv[0][0]+\
+        cd[0][1]*cd_inv[1][0];
+  pv2[1]=a_coeff[0][1]*cd[1][0]*cd_inv[1][1]+\
+        a_coeff[1][0]*cd[1][0]*cd_inv[0][1]+\
+        b_coeff[0][1]*cd[1][1]*cd_inv[1][1]+\
+        b_coeff[1][0]*cd[1][1]*cd_inv[0][1]+\
+        cd[1][0]*cd_inv[0][1]+\
+        cd[1][1]*cd_inv[1][1];
+
+
+
+    //  pvi_2  
+  pv1[2]=a_coeff[0][1]*cd[0][0]*cd_inv[1][1]+\
+        a_coeff[1][0]*cd[0][0]*cd_inv[0][1]+\
+        b_coeff[0][1]*cd[0][1]*cd_inv[1][1]+\
+        b_coeff[1][0]*cd[0][1]*cd_inv[0][1]+\
+        cd[0][0]*cd_inv[0][1]+\
+        cd[0][1]*cd_inv[1][1];
+  pv2[2]=a_coeff[0][1]*cd[1][0]*cd_inv[1][0]+\
+        a_coeff[1][0]*cd[1][0]*cd_inv[0][0]+\
+        b_coeff[0][1]*cd[1][1]*cd_inv[1][0]+\
+        b_coeff[1][0]*cd[1][1]*cd_inv[0][0]+\
+        cd[1][0]*cd_inv[0][0]+\
+        cd[1][1]*cd_inv[1][0];
+
+
+
+    // pvi_4  
+  pv1[4]=a_coeff[0][2]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        a_coeff[1][1]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]+\
+        a_coeff[2][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]+\
+        b_coeff[0][2]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]+\
+        b_coeff[1][1]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]+\
+        b_coeff[2][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0];
+  pv2[4]=a_coeff[0][2]*cd[1][0]*cd_inv[1][1]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[1][0]*cd_inv[0][1]*cd_inv[1][1]+\
+        a_coeff[2][0]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]+\
+        b_coeff[0][2]*cd[1][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[1][1]*cd_inv[0][1]*cd_inv[1][1]+\
+        b_coeff[2][0]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1];
+
+
+
+    //  pvi_5  
+  pv1[5]=2*a_coeff[0][2]*cd[0][0]*cd_inv[1][0]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[0][0]*cd_inv[0][0]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]+\
+        2*a_coeff[2][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]+\
+        2*b_coeff[0][2]*cd[0][1]*cd_inv[1][0]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[0][1]*cd_inv[0][0]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]+\
+        2*b_coeff[2][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1];
+  pv2[5]=2*a_coeff[0][2]*cd[1][0]*cd_inv[1][0]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[1][0]*cd_inv[0][0]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]+\
+        2*a_coeff[2][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]+\
+        2*b_coeff[0][2]*cd[1][1]*cd_inv[1][0]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[1][1]*cd_inv[0][0]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]+\
+        2*b_coeff[2][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1];
+
+
+
+    //  pvi_6  
+  pv1[6]=a_coeff[0][2]*cd[0][0]*cd_inv[1][1]*cd_inv[1][1]+\
+        a_coeff[1][1]*cd[0][0]*cd_inv[0][1]*cd_inv[1][1]+\
+        a_coeff[2][0]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]+\
+        b_coeff[0][2]*cd[0][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        b_coeff[1][1]*cd[0][1]*cd_inv[0][1]*cd_inv[1][1]+\
+        b_coeff[2][0]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1];
+  pv2[6]=a_coeff[0][2]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        a_coeff[1][1]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]+\
+        a_coeff[2][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]+\
+        b_coeff[0][2]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]+\
+        b_coeff[1][1]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]+\
+        b_coeff[2][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0];
+
+
+
+    //  pvi_7  
+  pv1[7]=a_coeff[0][3]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        a_coeff[1][2]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        a_coeff[2][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]+\
+        a_coeff[3][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]+\
+        b_coeff[0][3]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        b_coeff[1][2]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]+\
+        b_coeff[2][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]+\
+        b_coeff[3][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0];
+  pv2[7]=a_coeff[0][3]*cd[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        a_coeff[1][2]*cd[1][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        a_coeff[2][1]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]+\
+        a_coeff[3][0]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]+\
+        b_coeff[0][3]*cd[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        b_coeff[1][2]*cd[1][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]+\
+        b_coeff[2][1]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]+\
+        b_coeff[3][0]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+
+    //  pvi_8  
+  pv1[8]=3*a_coeff[0][3]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1]+\
+         2*a_coeff[1][2]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1]+\
+         a_coeff[1][2]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]+\
+         a_coeff[2][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+         2*a_coeff[2][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+         3*a_coeff[3][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1] +\
+         3*b_coeff[0][3]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+         2*b_coeff[1][2]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+         b_coeff[1][2]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+         b_coeff[2][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+         2*b_coeff[2][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+         3*b_coeff[3][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1];
+   pv2[8]=3*a_coeff[0][3]*cd[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][2]*cd[1][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] + \
+          2*a_coeff[1][2]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*a_coeff[2][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[2][1]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*a_coeff[3][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1] +\
+          3*b_coeff[0][3]*cd[1][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][2]*cd[1][1]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[1][2]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*b_coeff[2][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[2][1]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*b_coeff[3][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1];
+
+
+
+
+    //  pvi_9  
+  pv1[9]=3*a_coeff[0][3]*cd[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][2]*cd[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*a_coeff[1][2]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*a_coeff[2][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[2][1]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*a_coeff[3][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1] +\
+          3*b_coeff[0][3]*cd[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][2]*cd[0][1]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[1][2]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*b_coeff[2][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[2][1]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*b_coeff[3][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1];
+
+  pv2[9]=3*a_coeff[0][3]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*a_coeff[1][2]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[1][2]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[2][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          2*a_coeff[2][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*a_coeff[3][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1] +\
+          3*b_coeff[0][3]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*b_coeff[1][2]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[1][2]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[2][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          2*b_coeff[2][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          3*b_coeff[3][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1];
+
+
+
+    // pvi_10  
+  pv1[10]=a_coeff[0][3]*cd[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][2]*cd[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[2][1]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[3][0]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1] +\
+          b_coeff[0][3]*cd[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][2]*cd[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[2][1]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[3][0]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+
+  pv2[10]=a_coeff[0][3]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[1][2]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[2][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          a_coeff[3][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0] +\
+          b_coeff[0][3]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[1][2]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[2][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          b_coeff[3][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0];
+
+
+
+
+
+    //  pvi_12
+  pv1[12]=a_coeff[0][4]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[1][3]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          a_coeff[4][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0] +\
+          b_coeff[0][4]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[1][3]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          b_coeff[4][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0];
+
+  pv2[12]=a_coeff[0][4]*cd[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[1][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[3][1]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[4][0]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1] +\
+          b_coeff[0][4]*cd[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[1][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[3][1]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[4][0]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+
+
+
+    //  pvi_13
+  pv1[13]=4*a_coeff[0][4]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          2*a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*a_coeff[4][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1] +\
+          4*b_coeff[0][4]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          2*b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*b_coeff[4][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1];
+
+
+  pv2[13]=4*a_coeff[0][4]*cd[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[1][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[3][1]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*a_coeff[4][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1] +\
+          4*b_coeff[0][4]*cd[1][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[1][1]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[3][1]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*b_coeff[4][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+
+
+    //  pvi_14>
+  pv1[14]=6*a_coeff[0][4]*cd[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          4*a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          3*a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          6*a_coeff[4][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1] +\
+          6*b_coeff[0][4]*cd[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[0][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          4*b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          3*b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          6*b_coeff[4][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1];
+
+  pv2[14]=6*a_coeff[0][4]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          4*a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[1][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          3*a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          6*a_coeff[4][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1] +\
+          6*b_coeff[0][4]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          4*b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[1][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          3*b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          6*b_coeff[4][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1];
+
+
+
+    //  pvi_15> 
+  pv1[15]=4*a_coeff[0][4]*cd[0][0]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[0][0]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[3][1]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*a_coeff[4][0]*cd[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1] +\
+          4*b_coeff[0][4]*cd[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[0][1]*cd_inv[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[3][1]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*b_coeff[4][0]*cd[0][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+  pv2[15]=4*a_coeff[0][4]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*a_coeff[1][3]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[1][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          2*a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          3*a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*a_coeff[4][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1] +\
+          4*b_coeff[0][4]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          3*b_coeff[1][3]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[1][1]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          2*b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][1] +\
+          2*b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][1] +\
+          3*b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1]*cd_inv[1][0] +\
+          4*b_coeff[4][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][1];
+
+
+
+    //  pvi_16> 
+  pv1[16]=a_coeff[0][4]*cd[0][0]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[1][3]*cd[0][0]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[2][2]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          a_coeff[3][1]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          a_coeff[4][0]*cd[0][0]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1] +\
+          b_coeff[0][4]*cd[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[1][3]*cd[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[2][2]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1]*cd_inv[1][1] +\
+          b_coeff[3][1]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[1][1] +\
+          b_coeff[4][0]*cd[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1]*cd_inv[0][1];
+
+  pv2[16]=a_coeff[0][4]*cd[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[1][3]*cd[1][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[2][2]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          a_coeff[3][1]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          a_coeff[4][0]*cd[1][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0] +\
+          b_coeff[0][4]*cd[1][1]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[1][3]*cd[1][1]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[2][2]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0]*cd_inv[1][0] +\
+          b_coeff[3][1]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[1][0] +\
+          b_coeff[4][0]*cd[1][1]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0]*cd_inv[0][0];
+
+
+
+
+    
+
+  // /* For a check:
+    for(j=0; j<=16 ;j++)
+      {
+        if (j == 3 || j == 11) continue;
+        printf("pv1_%ld \t %.12E\n", j, pv1[j]);
+        printf("pv2_%ld \t %.12E\n", j, pv2[j]);
+      }
+  // */
+
+
+}
+
+
 
 
 static void
-gal_wcs_real_tpveq(double cd[2][2],
+gal_wcs_calc_tpveq(double cd[2][2],
                    double tpvu[8][8],
                    double tpvv[8][8],
                    char *infile,
@@ -496,7 +889,7 @@ gal_wcs_real_tpveq(double cd[2][2],
 
   gal_wcs_get_tpvparams(wcs, cd, pv1, pv2);
 
-  gal_wcs_compute_tpv(cd, pv1, pv2, k, l);
+  gal_wcs_intermidate_tpveq(cd, pv1, pv2, k, l);
 
 
   /* We will find matrix tpvu and tpvv by finding inverse of
@@ -545,6 +938,59 @@ gal_wcs_real_tpveq(double cd[2][2],
 }
 
 
+
+
+
+static void
+gal_wcs_calc_sipeq(double cd[2][2],
+                   double *pv1,
+                   double *pv2,
+                   char *infile,
+                   char *inhdu)
+{
+  /* tpvu and tpvv are u-v distortion equations in TPV convention. */
+  int a;
+  size_t i,j;
+  double determinant=0;
+  struct wcsprm *wcs=NULL;
+  double cd_inv[2][2]={0};
+  double a_coeff[5][5]={0}, b_coeff[5][5]={0};
+
+  wcs=gal_wcs_read(infile, inhdu, 0, 0, &a);
+
+
+  /* We will find matrix tpvu and tpvv by finding inverse of
+     CD matrix and multiplying with tpv* matrix.
+     For inverse of a 2x2 matrix we use the below trasformations:
+              inverse(|a  b|) =  1 *|d  -b|
+                      |c  d|    |A| |-c  a|
+      where |A| is the determinant of the matrix which is calculated by:
+                          |A| = a*d-b*c.
+    */
+
+  gal_wcs_get_sipparams(wcs, cd, a_coeff, b_coeff);
+ 
+  determinant = cd[0][0]*cd[1][1] - cd[0][1]*cd[1][0];
+
+  /* Inverse matrix */
+  cd_inv[0][0]=cd[1][1]/determinant;      /* a */
+  cd_inv[0][1]=(-1*cd[0][1])/determinant; /* b */
+  cd_inv[1][0]=(-1*cd[1][0])/determinant; /* c */
+  cd_inv[1][1]=cd[0][0]/determinant;      /* d */
+
+
+  gal_wcs_intermidate_sipeq( cd, cd_inv, a_coeff, b_coeff, pv1, pv2);
+
+
+
+  /*For a check.
+  printf("%.10lf\t%.10lf\t%.10lf\t%.10lf\n", cd_inv[0][0], cd_inv[0][1], \
+                                             cd_inv[1][0], cd_inv[1][1]);
+  printf("%.10lf\n", determinant);
+  */
+
+
+}
 
 
 
@@ -952,14 +1398,14 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
   size_t ap_order=0, bp_order=0;
   size_t m, n, num=0, numkey=100;
   double ap_coeff[5][5]={0}, bp_coeff[5][5]={0};
-  char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10], cdkey[10];
+  char *fullheader, fmt[50], sipkey[8], keyaxis[9], pcaxis[10];
 
   *nkeys = 0;
 
   /* The format for each card. */
   sprintf(fmt, "%%-8s= %%20.12E%%50s");
 
-  gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  gal_wcs_calc_tpveq(cd, tpvu, tpvv, infile, inhdu);
 
 
   /* Allcate memory for cards. */
@@ -979,14 +1425,6 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
       {
         sprintf(pcaxis, "PC%d_%d", i, j);
         sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", pcaxis, wcs->pc[k++], "");
-      }
-  
-  k=0;
-  for(i=1; i<=size; i++)
-    for(j=1; j<=size; j++)
-      {
-        sprintf(cdkey, "CD%d_%d", i, j);
-        sprintf(fullheader+(FLEN_CARD-1)*num++, "%-8s= %20.17lf%50s", cdkey, wcs->cd[k++], "");
       }
 
   for(i=1; i<=size; i++)
@@ -1255,26 +1693,31 @@ int main(){
     double tpvx[8][8]={0};
     double tpvy[8][8]={0};
     struct disprm *dis=NULL;
-    double pv1[GAL_WCS_MAX_PVSIZE] = {0};
-    double pv2[GAL_WCS_MAX_PVSIZE] = {0};
     size_t a_order=0, b_order=0;
     double crpix[2]={0};
     size_t naxis[2]={0};
     double tpvu[8][8]={0};
     double tpvv[8][8]={0};
-    */
     double a_coeff[5][5]={0};
     double b_coeff[5][5]={0};
+    */
+    double pv1[15] = {0};
+    double pv2[15] = {0};
     double cd[2][2]={0};
-  
 
+  wcs=gal_wcs_read(outfile, inhdu, 0, 0, &nwcs);
+  // gal_wcs_decompose_pc_cdelt(wcs);
+
+  // gal_wcs_get_sipparams(wcs, cd, a_coeff, b_coeff);
+  
+  gal_wcs_calc_sipeq( cd, pv1, pv2, outfile, inhdu);
 
   // /* Read wcs from fits file. */
   // wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
   // gal_wcs_decompose_pc_cdelt(wcs);
 
   // printf("cd=%.10E\n", wcs->cd[1]);
-  // // gal_wcs_real_tpveq(cd, tpvu, tpvv, infile, inhdu);
+  // // gal_wcs_calc_tpveq(cd, tpvu, tpvv, infile, inhdu);
   // // gal_wcs_add_sipkeywords(tpvu, tpvv, 0);
 
 
@@ -1291,13 +1734,7 @@ int main(){
   // gal_fits_img_write(out, outfile, NULL, NULL);
   // gal_data_free(out);
 
-  wcs=gal_wcs_read(outfile, inhdu, 0, 0, &nwcs);
-  // gal_wcs_decompose_pc_cdelt(wcs);
-  // out=gal_fits_img_read(outfile, inhdu, -1, 1);
-  // wcsprt(wcs);
 
-  gal_wcs_get_sipparams(wcs, cd, a_coeff, b_coeff);
-  
 
   return 0;
 }
