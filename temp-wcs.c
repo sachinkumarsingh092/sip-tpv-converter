@@ -1,15 +1,10 @@
-#include <time.h>
 #include <errno.h>
 #include <error.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <assert.h>
 
-#include <wcslib/dis.h>
-#include <wcslib/lin.h>
-#include <wcslib/wcs.h>
 #include <wcslib/wcslib.h>
 
 #include <gsl/gsl_linalg.h>
@@ -18,11 +13,7 @@
 #include <gsl/gsl_multifit.h>
 
 #include <gnuastro/wcs.h>
-#include <gnuastro/tile.h>
 #include <gnuastro/fits.h>
-#include <gnuastro/pointer.h>
-#include <gnuastro/dimension.h>
-#include <gnuastro/permutation.h>
 
 static void
 gal_wcs_calc_tpveq(struct wcsprm *wcs, double cd[2][2], double tpvu[8][8],
@@ -178,7 +169,7 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
     {
       if (keyp->j == 1)
         {
-          if ((keyval = dpkeyd(keyp)) == 0.0) continue;
+          // if ((keyval = dpkeyd(keyp)) == 0.0) continue;
 
           cp = strchr(keyp->field, '.') + 1;
           if (strncmp(cp, "SIP.FWD.", 8) != 0) continue;
@@ -194,7 +185,7 @@ gal_wcs_get_sipparams(struct wcsprm *wcs,
         }
       else if (keyp->j == 2)
         {
-          if ((keyval = dpkeyd(keyp)) == 0.0) continue;
+          // if ((keyval = dpkeyd(keyp)) == 0.0) continue;
 
           cp = strchr(keyp->field, '.') + 1;
           if (strncmp(cp, "SIP.FWD.", 8) != 0) continue;
@@ -861,7 +852,7 @@ gal_wcs_intermidate_sipeq(double cd[2][2],
 
 static void
 gal_wcs_calc_tpveq(struct wcsprm *wcs,
-		   double cd[2][2],
+		               double cd[2][2],
                    double tpvu[8][8],
                    double tpvv[8][8])
 {
@@ -872,7 +863,6 @@ gal_wcs_calc_tpveq(struct wcsprm *wcs,
   double pv1[GAL_WCS_MAX_PVSIZE] = {0};
   double pv2[GAL_WCS_MAX_PVSIZE] = {0};
   double k[5][5]={0}, l[5][5]={0};
-  // double tpv1[8][8]={0}, tpv2[8][8]={0};
 
 
   gal_wcs_get_tpvparams(wcs, cd, pv1, pv2);
@@ -930,20 +920,17 @@ gal_wcs_calc_tpveq(struct wcsprm *wcs,
 
 
 static void
-gal_wcs_calc_sipeq(double cd[2][2],
+gal_wcs_calc_sipeq(struct wcsprm *wcs,
+                   double cd[2][2],
                    double *pv1,
-                   double *pv2,
-                   char *infile,
-                   char *inhdu)
+                   double *pv2)
 {
   /* tpvu and tpvv are u-v distortion equations in TPV convention. */
   int a;
   double determinant=0;
-  struct wcsprm *wcs=NULL;
   double cd_inv[2][2]={0};
   double a_coeff[5][5]={0}, b_coeff[5][5]={0};
 
-  wcs=gal_wcs_read(infile, inhdu, 0, 0, &a);
 
 
   /* We will find matrix tpvu and tpvv by finding inverse of
@@ -1520,14 +1507,12 @@ gal_wcs_add_sipkeywords(struct wcsprm *wcs,
 
 char *
 gal_wcs_add_pvkeywords(struct wcsprm *wcs,
-                        gal_data_t *in,
                         double *pv1,
                         double *pv2,
                         double cd[2][2],
-                        char *infile,
-                        char *inhdu,
                         int *nkeys)
 {
+  
   double val=0;
   uint8_t i, j, k=0;
   int size = wcs->naxis;
@@ -1539,7 +1524,7 @@ gal_wcs_add_pvkeywords(struct wcsprm *wcs,
   /* The format for each card. */
   sprintf(fmt, "%%-8s= %%20.12E%%50s");
 
-  gal_wcs_calc_sipeq(cd, pv1, pv2, infile, inhdu);
+  gal_wcs_calc_sipeq(wcs, cd, pv1, pv2);
 
 
   /* Allcate memory for cards. */
@@ -1771,10 +1756,7 @@ gal_wcs_tpv2sip(struct wcsprm *inwcs,
 
 
 struct wcsprm *
-gal_wcs_sip2tpv(struct wcsprm *inwcs,
-                gal_data_t *in,
-                char *infile,
-                char *inhdu)
+gal_wcs_sip2tpv(struct wcsprm *inwcs)
 {
   int ctrl     = 0;          /* Don't report why a keyword wasn't used. */
   int nreject  = 0;          /* Number of keywords rejected for syntax. */
@@ -1786,7 +1768,7 @@ gal_wcs_sip2tpv(struct wcsprm *inwcs,
   double cd[2][2]={0};
   double pv1[115]={0}, pv2[15]={0};
 
-  char *fullheader=gal_wcs_add_pvkeywords(inwcs, in, pv1, pv2, cd, infile, inhdu, &nkeys);
+  char *fullheader=gal_wcs_add_pvkeywords(inwcs, pv1, pv2, cd, &nkeys);
 
 
   // printf("%s\n", fullheader);
@@ -1889,9 +1871,9 @@ gal_wcs_sip2tpv(struct wcsprm *inwcs,
         }
     }
 
-  /* For a check.
+  // /* For a check.
     wcsprt(outwcs);
-  */
+  // */
 
   /* Clean up and return. */
   status=0;
@@ -1920,7 +1902,7 @@ int main()
     int nwcs;
 
     /* Set to 1 for PV --> SIP and 0 for SIP --> PV. */
-    int pvtosip=1;
+    int pvtosip=2;
 
     /* Do the job. */
     if(pvtosip==1)
@@ -1937,19 +1919,19 @@ int main()
 
 	/* Write the modified header into the fits file.  */
 	out->wcs=outwcs;
-	out->nwcs=1;
+	out->nwcs=0;
 
 	gal_fits_img_write(out, outfile, NULL, NULL);
 	gal_data_free(out);
       }
-    else
+    else if(pvtosip == 2)
       {
 	wcs=gal_wcs_read(pvinfile, inhdu, 0, 0, &nwcs);
 	gal_wcs_decompose_pc_cdelt(wcs);
 
 	out=gal_fits_img_read(pvinfile, inhdu, -1, 1);
 
-	outwcs=gal_wcs_sip2tpv(wcs, out, outfile, inhdu);
+	outwcs=gal_wcs_sip2tpv(wcs);
 
 	/* Write the modified header into the fits file.  */
 	out->wcs=outwcs;
@@ -1958,6 +1940,23 @@ int main()
 	gal_fits_img_write(out, pvoutfile, NULL, NULL);
 	gal_data_free(out);
       }
+    else{
+  wcs=gal_wcs_read(infile, inhdu, 0, 0, &nwcs);
+	gal_wcs_decompose_pc_cdelt(wcs);
+
+	out=gal_fits_img_read(infile, inhdu, -1, 1);
+  printf("++++++++++++\n");
+
+	outwcs=gal_wcs_sip2tpv(wcs);
+
+
+	/* Write the modified header into the fits file.  */
+	out->wcs=outwcs;
+	out->nwcs=1;
+
+	gal_fits_img_write(out, "./test-fits/tpd.fits", NULL, NULL);
+	gal_data_free(out);
+    }
 
   return 0;
 }
@@ -1965,73 +1964,73 @@ int main()
 
 
 
-/* Proposed structure:
+// /* Proposed structure:
 
-   In the 'wcs.[ch]' library, we will add two top-level functions:
+//    In the 'wcs.[ch]' library, we will add two top-level functions:
 
-      int
-      gal_wcs_distortion_identify(struct wcsprm *wcs);
+//       int
+//       gal_wcs_distortion_identify(struct wcsprm *wcs);
 
-      stuct wcsprm *
-      gal_wcs_distortion_convert(sruct wcsprm *wcs, int distortion)
+//       stuct wcsprm *
+//       gal_wcs_distortion_convert(sruct wcsprm *wcs, int distortion)
 
-   In 'wcs.h' we define an 'enum' for a code to all the distortions
-   for example:
+//    In 'wcs.h' we define an 'enum' for a code to all the distortions
+//    for example:
 
-    enum gal_wcs_distortions
-    {
-      GAL_WCS_DISTORTION_INVALID,
-      GAL_WCS_DISTORTION_TPD,
-      GAL_WCS_DISTORTION_SIP,
-      GAL_WCS_DISTORTION_TPV,
-      GAL_WCS_DISTORTION_XXX,
-    }
+//     enum gal_wcs_distortions
+//     {
+//       GAL_WCS_DISTORTION_INVALID,
+//       GAL_WCS_DISTORTION_TPD,
+//       GAL_WCS_DISTORTION_SIP,
+//       GAL_WCS_DISTORTION_TPV,
+//       GAL_WCS_DISTORTION_XXX,
+//     }
 
-   We make an internal Gnuastro library called 'lib/wcsdistortion.c'
-   with headers in 'lib/gnuastro-internal/wcsdistortion.h'.
+//    We make an internal Gnuastro library called 'lib/wcsdistortion.c'
+//    with headers in 'lib/gnuastro-internal/wcsdistortion.h'.
 
-     All of this file (except 'main') will be moved there!
-*/
+//      All of this file (except 'main') will be moved there!
+// */
 
-/* This function will  */
-int
-gal_wcs_distortion_identify(struct wcsprm *wcs);
+// /* This function will  */
+// int
+// gal_wcs_distortion_identify(struct wcsprm *wcs);
 
 
-stuct wcsprm *
-gal_wcs_distortion_convert(sruct wcsprm *wcs, int out_distortion,
-			   size_t *fitsize)
-{
-  int indisptype=gal_wcs_distortion_identify(wcs);
+// struct wcsprm *
+// gal_wcs_distortion_convert(struct wcsprm *wcs, int out_distortion,
+// 			   size_t *fitsize)
+// {
+//   int indisptype=gal_wcs_distortion_identify(wcs);
 
-  /* Make sure we have a PC+CDELT structure in the input WCS. */
-  gal_wcs_decompose_pc_cdelt(wcs);
+//   /* Make sure we have a PC+CDELT structure in the input WCS. */
+//   gal_wcs_decompose_pc_cdelt(wcs);
 
-  /* Do the conversions based on the type. */
-  if(indisptype)
-    {
-      /* We know that there is  */
-      switch(out_distortion)
-	{
-	case GAL_WCS_DISTORTION_TPV:
-	  switch(indisptype)
-	    {
-	    case GAL_WCS_DISTORTION_SIP:
-	      gal_wcsdistortion_tpv_to_sip(/*.....*/, fitsize);
-	    default
-	      error(EXIT_FAILURE, 0, "SORRY!");
-	    }
-	  break;
-	case GAL_WCS_DISTORTION_SIP:
-	  break;
-	default:
-	  error(EXIT_FAILURE, 0, "SORRY! We don't yet support the "
-		"desired distortion.")
-	    }
-    }
-  else
-    {
-      /* Check if input WCS has any distortion at all! If not, just copy
-	 the input WCS 'gal_wcs_copy' and return! */
-    }
-}
+//   /* Do the conversions based on the type. */
+//   if(indisptype)
+//     {
+//       /* We know that there is  */
+//       switch(out_distortion)
+// 	      {
+// 	        case GAL_WCS_DISTORTION_TPV:
+// 	          switch(indisptype)
+// 	            {
+// 	            case GAL_WCS_DISTORTION_SIP:
+// 	              gal_wcsdistortion_tpv_to_sip(/*.....*/, fitsize);
+// 	            default
+// 	              error(EXIT_FAILURE, 0, "SORRY!");
+// 	            }
+// 	        break;
+// 	        case GAL_WCS_DISTORTION_SIP:
+// 	        break;
+// 	        default:
+// 	        error(EXIT_FAILURE, 0, "SORRY! We don't yet support the "
+// 		      desired distortion.");
+// 	        }
+//     }
+//   else
+//     {
+//       /* Check if input WCS has any distortion at all! If not, just copy
+// 	    the input WCS 'gal_wcs_copy' and return! */
+//     }
+// }
